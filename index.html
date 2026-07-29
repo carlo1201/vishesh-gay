@@ -22,8 +22,8 @@ html, body {
 
 body {
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
 #gameBox {
@@ -31,7 +31,7 @@ body {
   width: min(100vw, 430px);
   height: min(100vh, 760px);
   overflow: hidden;
-  background: #000;
+  background: black;
 }
 
 canvas {
@@ -43,7 +43,7 @@ canvas {
 
 #restartBtn {
   position: absolute;
-  z-index: 20;
+  z-index: 50;
 
   left: 50%;
   bottom: 55px;
@@ -51,13 +51,13 @@ canvas {
 
   display: none;
 
+  padding: 14px 30px;
+
   border: 3px solid white;
   border-radius: 15px;
 
-  background: rgba(0,0,0,0.8);
+  background: rgba(0,0,0,.82);
   color: white;
-
-  padding: 13px 28px;
 
   font-size: 20px;
   font-weight: bold;
@@ -66,7 +66,7 @@ canvas {
 }
 
 #restartBtn:active {
-  transform: translateX(-50%) scale(0.95);
+  transform: translateX(-50%) scale(.95);
 }
 </style>
 </head>
@@ -87,36 +87,33 @@ canvas {
 
 </div>
 
-
 <script>
 
 // =====================================================
 // CANVAS
 // =====================================================
 
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas =
+  document.getElementById("game");
 
-const restartBtn = document.getElementById("restartBtn");
+const ctx =
+  canvas.getContext("2d");
+
+const restartBtn =
+  document.getElementById("restartBtn");
 
 
 // =====================================================
 // IMAGES
 // =====================================================
 
-// Friend photo
-
 const friendImg = new Image();
 friendImg.src = "friend.png";
 
 
-// Game over photo
-
 const loseImg = new Image();
 loseImg.src = "lose.png";
 
-
-// Six backgrounds
 
 const backgrounds = [];
 
@@ -124,7 +121,7 @@ for (let i = 1; i <= 6; i++) {
 
   const img = new Image();
 
-  img.src = "bg" + i + ".png";
+  img.src = `bg${i}.png`;
 
   backgrounds.push(img);
 
@@ -135,32 +132,382 @@ for (let i = 1; i <= 6; i++) {
 // AUDIO
 // =====================================================
 
-// Intro/start voice
+const startSound =
+  new Audio("start.mp3");
 
-const startSound = new Audio("start.mp3");
-
-
-// Three tap voices
 
 const touchSounds = [
+
   new Audio("touch1.mp3"),
+
   new Audio("touch2.mp3"),
+
   new Audio("touch3.mp3")
+
 ];
 
 
-// Game over voice
+const gameOverSound =
+  new Audio("gameover.mp3");
 
-const gameOverSound = new Audio("gameover.mp3");
 
+// =====================================================
+// AUDIO SETTINGS
+// =====================================================
 
-// Prevent sounds from being too loud
+startSound.preload = "auto";
 
-startSound.volume = 1;
-gameOverSound.volume = 1;
+gameOverSound.preload = "auto";
+
 
 touchSounds.forEach(sound => {
-  sound.volume = 1;
+
+  sound.preload = "auto";
+
+});
+
+
+// =====================================================
+// AUDIO SYSTEM
+// IMPORTANT:
+// ONLY ONE NORMAL VOICE CAN PLAY AT A TIME
+// =====================================================
+
+let activeNormalSound = null;
+
+
+// Which touch voice comes next
+
+let nextTouchIndex = 0;
+
+
+// Number of requested voices waiting
+
+let pendingTouchVoices = 0;
+
+
+// True while intro/start voice is playing
+
+let introPlaying = false;
+
+
+// Used to cancel old audio callbacks after
+// game over / restart
+
+let audioSession = 0;
+
+
+// =====================================================
+// SAFE STOP AUDIO
+// =====================================================
+
+function stopAudio(audio) {
+
+  if (!audio) return;
+
+
+  audio.pause();
+
+
+  try {
+
+    audio.currentTime = 0;
+
+  }
+  catch (error) {}
+
+}
+
+
+// =====================================================
+// STOP ALL NORMAL AUDIO
+// =====================================================
+
+function stopNormalAudio() {
+
+  stopAudio(startSound);
+
+
+  touchSounds.forEach(sound => {
+
+    stopAudio(sound);
+
+  });
+
+
+  activeNormalSound = null;
+
+  introPlaying = false;
+
+  pendingTouchVoices = 0;
+
+}
+
+
+// =====================================================
+// RESET AUDIO SYSTEM
+// =====================================================
+
+function resetAudioSystem() {
+
+  audioSession++;
+
+
+  stopNormalAudio();
+
+  stopAudio(gameOverSound);
+
+
+  nextTouchIndex = 0;
+
+  pendingTouchVoices = 0;
+
+  introPlaying = false;
+
+  activeNormalSound = null;
+
+}
+
+
+// =====================================================
+// START INTRO VOICE
+// =====================================================
+
+function playIntroVoice() {
+
+  const mySession =
+    audioSession;
+
+
+  stopNormalAudio();
+
+
+  introPlaying = true;
+
+  activeNormalSound =
+    startSound;
+
+
+  startSound.currentTime = 0;
+
+
+  startSound.play()
+    .catch(() => {
+
+      // If browser fails to play intro,
+      // unlock touch voices.
+
+      if (
+        mySession === audioSession &&
+        !gameOver
+      ) {
+
+        introPlaying = false;
+
+        activeNormalSound = null;
+
+        playNextTouchVoice();
+
+      }
+
+    });
+
+}
+
+
+// =====================================================
+// WHEN INTRO ENDS
+// =====================================================
+
+startSound.addEventListener(
+  "ended",
+  function() {
+
+    if (gameOver) return;
+
+
+    introPlaying = false;
+
+    activeNormalSound = null;
+
+
+    playNextTouchVoice();
+
+  }
+);
+
+
+// =====================================================
+// REQUEST TOUCH VOICE
+// =====================================================
+
+function requestTouchVoice() {
+
+  if (
+    gameOver ||
+    !started
+  ) {
+
+    return;
+
+  }
+
+
+  // Add one voice to queue.
+
+  pendingTouchVoices++;
+
+
+  // Don't play over intro.
+
+  if (introPlaying) {
+
+    return;
+
+  }
+
+
+  // Don't overlap current voice.
+
+  if (activeNormalSound) {
+
+    return;
+
+  }
+
+
+  playNextTouchVoice();
+
+}
+
+
+// =====================================================
+// PLAY NEXT TOUCH VOICE
+// =====================================================
+
+function playNextTouchVoice() {
+
+  if (gameOver) {
+
+    pendingTouchVoices = 0;
+
+    return;
+
+  }
+
+
+  if (introPlaying) {
+
+    return;
+
+  }
+
+
+  if (activeNormalSound) {
+
+    return;
+
+  }
+
+
+  if (pendingTouchVoices <= 0) {
+
+    return;
+
+  }
+
+
+  pendingTouchVoices--;
+
+
+  const sound =
+    touchSounds[nextTouchIndex];
+
+
+  nextTouchIndex =
+    (nextTouchIndex + 1)
+    %
+    touchSounds.length;
+
+
+  const mySession =
+    audioSession;
+
+
+  activeNormalSound =
+    sound;
+
+
+  sound.currentTime = 0;
+
+
+  sound.play()
+    .catch(() => {
+
+      if (
+        mySession !== audioSession
+      ) {
+
+        return;
+
+      }
+
+
+      if (gameOver) {
+
+        return;
+
+      }
+
+
+      activeNormalSound = null;
+
+
+      playNextTouchVoice();
+
+    });
+
+}
+
+
+// =====================================================
+// TOUCH VOICE FINISH EVENTS
+// =====================================================
+
+touchSounds.forEach(sound => {
+
+  sound.addEventListener(
+    "ended",
+    function() {
+
+      // Ignore old sound events.
+
+      if (
+        activeNormalSound !== sound
+      ) {
+
+        return;
+
+      }
+
+
+      activeNormalSound = null;
+
+
+      if (gameOver) {
+
+        pendingTouchVoices = 0;
+
+        return;
+
+      }
+
+
+      playNextTouchVoice();
+
+    }
+  );
+
 });
 
 
@@ -171,9 +518,11 @@ touchSounds.forEach(sound => {
 const player = {
 
   x: 75,
+
   y: 320,
 
   width: 92,
+
   height: 68,
 
   velocity: 0,
@@ -228,12 +577,14 @@ let deathVelocity = 0;
 
 let highScore =
   Number(
-    localStorage.getItem("friendFlappyBest")
+    localStorage.getItem(
+      "friendFlappyBest"
+    )
   ) || 0;
 
 
 // =====================================================
-// BACKGROUND SCROLLING
+// BACKGROUND
 // =====================================================
 
 let backgroundIndex = 0;
@@ -243,22 +594,28 @@ let nextBackgroundIndex = 1;
 let backgroundX = 0;
 
 
-// How quickly scenery moves
-
 const backgroundSpeed = 1.35;
 
 
 // =====================================================
-// DRAW IMAGE LIKE CSS "COVER"
+// DRAW COVER IMAGE
 // =====================================================
 
-function drawCoverImage(img, x, y, width, height) {
+function drawCoverImage(
+  img,
+  x,
+  y,
+  width,
+  height
+) {
 
   if (
     !img.complete ||
     img.naturalWidth === 0
   ) {
+
     return;
+
   }
 
 
@@ -272,42 +629,46 @@ function drawCoverImage(img, x, y, width, height) {
     height;
 
 
-  let sourceX = 0;
-  let sourceY = 0;
+  let sx = 0;
 
-  let sourceWidth =
+  let sy = 0;
+
+  let sw =
     img.naturalWidth;
 
-  let sourceHeight =
+  let sh =
     img.naturalHeight;
 
 
-  if (imageRatio > boxRatio) {
+  if (
+    imageRatio >
+    boxRatio
+  ) {
 
-    sourceWidth =
+    sw =
       img.naturalHeight *
       boxRatio;
 
 
-    sourceX =
+    sx =
       (
         img.naturalWidth -
-        sourceWidth
+        sw
       ) / 2;
 
   }
 
   else {
 
-    sourceHeight =
+    sh =
       img.naturalWidth /
       boxRatio;
 
 
-    sourceY =
+    sy =
       (
         img.naturalHeight -
-        sourceHeight
+        sh
       ) / 2;
 
   }
@@ -317,88 +678,17 @@ function drawCoverImage(img, x, y, width, height) {
 
     img,
 
-    sourceX,
-    sourceY,
-
-    sourceWidth,
-    sourceHeight,
+    sx,
+    sy,
+    sw,
+    sh,
 
     x,
     y,
-
     width,
     height
 
   );
-
-}
-
-
-// =====================================================
-// START VOICE
-// =====================================================
-
-function playStartVoice() {
-
-  startSound.pause();
-
-  startSound.currentTime = 0;
-
-  startSound.play().catch(() => {});
-
-}
-
-
-// =====================================================
-// TAP VOICES
-// =====================================================
-
-// This remembers which sound was last used,
-// so the same voice isn't repeated immediately.
-
-let lastTouchSound = -1;
-
-
-function playTapVoice() {
-
-  let index;
-
-
-  if (touchSounds.length === 1) {
-
-    index = 0;
-
-  }
-
-  else {
-
-    do {
-
-      index =
-        Math.floor(
-          Math.random() *
-          touchSounds.length
-        );
-
-    }
-    while (index === lastTouchSound);
-
-  }
-
-
-  lastTouchSound = index;
-
-
-  const sound = touchSounds[index];
-
-
-  // Clone allows rapid taps to overlap naturally.
-
-  const copy = sound.cloneNode();
-
-  copy.volume = sound.volume;
-
-  copy.play().catch(() => {});
 
 }
 
@@ -409,9 +699,10 @@ function playTapVoice() {
 
 function createPipe() {
 
-  const minimumTop = 90;
+  const minTop = 90;
 
-  const maximumTop =
+
+  const maxTop =
     canvas.height -
     pipeGap -
     150;
@@ -422,24 +713,28 @@ function createPipe() {
 
       Math.random() *
       (
-        maximumTop -
-        minimumTop
+        maxTop -
+        minTop
       )
 
-    ) + minimumTop;
+    ) + minTop;
 
 
   pipes.push({
 
-    x: canvas.width + 30,
+    x:
+      canvas.width +
+      30,
 
-    top: topHeight,
+    top:
+      topHeight,
 
     bottom:
       topHeight +
       pipeGap,
 
-    counted: false
+    counted:
+      false
 
   });
 
@@ -452,19 +747,24 @@ function createPipe() {
 
 function startGame() {
 
-  if (started) {
-    return;
-  }
+  if (started) return;
+
+
+  resetAudioSystem();
 
 
   started = true;
+
+  gameOver = false;
 
   frame = 0;
 
   pipes = [];
 
 
-  playStartVoice();
+  // Start voice ONLY.
+
+  playIntroVoice();
 
 }
 
@@ -476,25 +776,41 @@ function startGame() {
 function jump() {
 
   if (gameOver) {
+
     return;
+
   }
 
+
+  // FIRST TAP
 
   if (!started) {
 
     startGame();
 
-    // First click starts the game.
-    // Tap sound begins from following jumps.
+
+    // Jump immediately,
+    // but don't play touch voice
+    // on same tap as start.mp3.
+
+    player.velocity =
+      jumpPower;
+
+
+    player.rotation =
+      -0.38;
+
+
+    player.scale =
+      1.10;
+
+
+    return;
 
   }
 
-  else {
 
-    playTapVoice();
-
-  }
-
+  // NORMAL JUMP
 
   player.velocity =
     jumpPower;
@@ -507,6 +823,12 @@ function jump() {
   player.scale =
     1.10;
 
+
+  // Queue voice.
+  // It will NEVER overlap another voice.
+
+  requestTouchVoice();
+
 }
 
 
@@ -516,30 +838,28 @@ function jump() {
 
 function checkPipeCollision(pipe) {
 
-  // Slightly forgiving hitbox
-
   const paddingX = 15;
 
   const paddingY = 10;
 
 
-  const playerLeft =
+  const left =
     player.x +
     paddingX;
 
 
-  const playerRight =
+  const right =
     player.x +
     player.width -
     paddingX;
 
 
-  const playerTop =
+  const top =
     player.y +
     paddingY;
 
 
-  const playerBottom =
+  const bottom =
     player.y +
     player.height -
     paddingY;
@@ -554,57 +874,49 @@ function checkPipeCollision(pipe) {
     pipeWidth;
 
 
-  const horizontalHit =
+  const touchingX =
 
-    playerRight >
+    right >
     pipeLeft
 
     &&
 
-    playerLeft <
+    left <
     pipeRight;
 
 
-  if (!horizontalHit) {
+  if (!touchingX) {
 
     return false;
 
   }
 
 
-  if (
-    playerTop <
+  return (
+
+    top <
     pipe.top
-  ) {
 
-    return true;
+    ||
 
-  }
-
-
-  if (
-    playerBottom >
+    bottom >
     pipe.bottom
-  ) {
 
-    return true;
-
-  }
-
-
-  return false;
+  );
 
 }
 
 
 // =====================================================
-// END GAME
+// GAME OVER
 // =====================================================
 
 function endGame() {
 
   if (gameOver) {
+
     return;
+
   }
 
 
@@ -615,11 +927,64 @@ function endGame() {
     player.velocity;
 
 
-  // Save best score
+  // ===================================================
+  // MOST IMPORTANT AUDIO PART
+  // ===================================================
 
-  if (score > highScore) {
+  // Cancel callbacks/old queue
 
-    highScore = score;
+  audioSession++;
+
+
+  // STOP start.mp3
+
+  stopAudio(startSound);
+
+
+  // STOP ALL touch voices immediately
+
+  touchSounds.forEach(sound => {
+
+    stopAudio(sound);
+
+  });
+
+
+  // Delete pending voices
+
+  pendingTouchVoices = 0;
+
+  activeNormalSound = null;
+
+  introPlaying = false;
+
+
+  // Make sure old gameover isn't playing
+
+  stopAudio(gameOverSound);
+
+
+  // ===================================================
+  // ONLY GAMEOVER.MP3 NOW
+  // ===================================================
+
+  gameOverSound.currentTime = 0;
+
+
+  gameOverSound
+    .play()
+    .catch(() => {});
+
+
+  // Save high score
+
+  if (
+    score >
+    highScore
+  ) {
+
+    highScore =
+      score;
 
 
     localStorage.setItem(
@@ -633,45 +998,22 @@ function endGame() {
   }
 
 
-  // Stop intro if still playing
+  // Restart button
 
-  startSound.pause();
+  setTimeout(
+    function() {
 
+      if (gameOver) {
 
-  // Stop tap sounds
+        restartBtn.style.display =
+          "block";
 
-  touchSounds.forEach(sound => {
+      }
 
-    sound.pause();
+    },
 
-    sound.currentTime = 0;
-
-  });
-
-
-  // Game over voice
-
-  gameOverSound.pause();
-
-  gameOverSound.currentTime = 0;
-
-  gameOverSound
-    .play()
-    .catch(() => {});
-
-
-  // Restart button appears shortly after losing
-
-  setTimeout(() => {
-
-    if (gameOver) {
-
-      restartBtn.style.display =
-        "block";
-
-    }
-
-  }, 700);
+    800
+  );
 
 }
 
@@ -682,32 +1024,10 @@ function endGame() {
 
 function restartGame() {
 
-  // Stop game-over audio
+  // Kill EVERY audio first.
 
-  gameOverSound.pause();
+  resetAudioSystem();
 
-  gameOverSound.currentTime = 0;
-
-
-  // Stop intro
-
-  startSound.pause();
-
-  startSound.currentTime = 0;
-
-
-  // Reset tap sounds
-
-  touchSounds.forEach(sound => {
-
-    sound.pause();
-
-    sound.currentTime = 0;
-
-  });
-
-
-  // Player
 
   player.x = 75;
 
@@ -720,13 +1040,13 @@ function restartGame() {
   player.scale = 1;
 
 
-  // Game
-
   pipes = [];
+
 
   frame = 0;
 
   score = 0;
+
 
   pipeSpeed = 3.1;
 
@@ -736,16 +1056,14 @@ function restartGame() {
   gameOver = false;
 
 
-  // Background starts from first image again
+  deathVelocity = 0;
+
 
   backgroundIndex = 0;
 
   nextBackgroundIndex = 1;
 
   backgroundX = 0;
-
-
-  lastTouchSound = -1;
 
 
   restartBtn.style.display =
@@ -764,16 +1082,15 @@ function updateBackground() {
     !started ||
     gameOver
   ) {
+
     return;
+
   }
 
 
   backgroundX -=
     backgroundSpeed;
 
-
-  // Once one entire screen has passed,
-  // move to next background.
 
   if (
     backgroundX <=
@@ -790,7 +1107,8 @@ function updateBackground() {
 
     nextBackgroundIndex =
       (
-        nextBackgroundIndex + 1
+        nextBackgroundIndex +
+        1
       )
       %
       backgrounds.length;
@@ -801,39 +1119,43 @@ function updateBackground() {
 
 
 // =====================================================
-// DRAW MOVING BACKGROUNDS
+// DRAW BACKGROUND
 // =====================================================
 
 function drawBackground() {
 
-  // Backup colour while images load
+  ctx.fillStyle =
+    "#70c5ce";
 
-  ctx.fillStyle = "#70c5ce";
 
   ctx.fillRect(
+
     0,
     0,
+
     canvas.width,
     canvas.height
+
   );
 
 
   const current =
-    backgrounds[backgroundIndex];
+    backgrounds[
+      backgroundIndex
+    ];
 
 
   const next =
-    backgrounds[nextBackgroundIndex];
+    backgrounds[
+      nextBackgroundIndex
+    ];
 
-
-  // Current scenery moving left
 
   drawCoverImage(
 
     current,
 
     backgroundX,
-
     0,
 
     canvas.width,
@@ -841,8 +1163,6 @@ function drawBackground() {
 
   );
 
-
-  // Next scenery entering from right
 
   drawCoverImage(
 
@@ -869,16 +1189,17 @@ function updatePlayer() {
 
   if (!started) {
 
-    // Small floating animation
-    // before game starts
-
     player.y =
+
       320 +
+
       Math.sin(
+
         performance.now() /
         350
-      ) *
-      7;
+
+      ) * 7;
+
 
     return;
 
@@ -900,10 +1221,9 @@ function updatePlayer() {
     player.velocity;
 
 
-  // Falling rotation
-
   if (
-    player.velocity > 0
+    player.velocity >
+    0
   ) {
 
     player.rotation +=
@@ -913,7 +1233,8 @@ function updatePlayer() {
 
 
   if (
-    player.rotation > 1.15
+    player.rotation >
+    1.15
   ) {
 
     player.rotation =
@@ -921,8 +1242,6 @@ function updatePlayer() {
 
   }
 
-
-  // Jump squash animation back to normal
 
   player.scale +=
 
@@ -939,13 +1258,15 @@ function updatePlayer() {
 
 
 // =====================================================
-// UPDATE DEATH
+// DEATH ANIMATION
 // =====================================================
 
 function updateDeath() {
 
   if (!gameOver) {
+
     return;
+
   }
 
 
@@ -992,8 +1313,6 @@ function updatePipes() {
   }
 
 
-  // New pipe every ~1.6 seconds at 60fps
-
   if (
     frame % 100 === 0
   ) {
@@ -1011,10 +1330,10 @@ function updatePipes() {
       pipeSpeed;
 
 
-    // Collision
-
     if (
-      checkPipeCollision(pipe)
+      checkPipeCollision(
+        pipe
+      )
     ) {
 
       endGame();
@@ -1024,14 +1343,16 @@ function updatePipes() {
     }
 
 
-    // Passed pipe
-
     if (
+
       !pipe.counted
+
       &&
+
       pipe.x +
       pipeWidth <
       player.x
+
     ) {
 
       pipe.counted =
@@ -1040,8 +1361,6 @@ function updatePipes() {
 
       score++;
 
-
-      // Slowly make game faster
 
       pipeSpeed =
         Math.min(
@@ -1059,12 +1378,11 @@ function updatePipes() {
   }
 
 
-  // Remove pipes that left screen
-
   pipes =
     pipes.filter(
 
       pipe =>
+
         pipe.x >
         -pipeWidth -
         20
@@ -1090,8 +1408,6 @@ function checkWorldCollision() {
   }
 
 
-  // Top
-
   if (
     player.y <= 0
   ) {
@@ -1105,12 +1421,12 @@ function checkWorldCollision() {
   }
 
 
-  // Bottom
-
   if (
+
     player.y +
     player.height >=
     canvas.height
+
   ) {
 
     endGame();
@@ -1121,7 +1437,7 @@ function checkWorldCollision() {
 
 
 // =====================================================
-// UPDATE EVERYTHING
+// UPDATE
 // =====================================================
 
 function update() {
@@ -1162,7 +1478,7 @@ function drawPipes() {
     // Shadow
 
     ctx.fillStyle =
-      "rgba(0,0,0,0.22)";
+      "rgba(0,0,0,.20)";
 
 
     ctx.fillRect(
@@ -1192,7 +1508,7 @@ function drawPipes() {
     );
 
 
-    // Main green pipe
+    // Pipes
 
     ctx.fillStyle =
       "#45b649";
@@ -1225,7 +1541,7 @@ function drawPipes() {
     );
 
 
-    // Pipe mouths
+    // Pipe heads
 
     ctx.fillStyle =
       "#2f9638";
@@ -1257,10 +1573,10 @@ function drawPipes() {
     );
 
 
-    // Highlights
+    // Highlight
 
     ctx.fillStyle =
-      "rgba(255,255,255,0.20)";
+      "rgba(255,255,255,.20)";
 
 
     ctx.fillRect(
@@ -1271,7 +1587,10 @@ function drawPipes() {
 
       8,
 
-      pipe.top - 28
+      Math.max(
+        0,
+        pipe.top - 28
+      )
 
     );
 
@@ -1284,9 +1603,15 @@ function drawPipes() {
 
       8,
 
-      canvas.height -
-      pipe.bottom -
-      28
+      Math.max(
+
+        0,
+
+        canvas.height -
+        pipe.bottom -
+        28
+
+      )
 
     );
 
@@ -1296,12 +1621,10 @@ function drawPipes() {
 
 
 // =====================================================
-// DRAW BIRD + FRIEND PHOTO
+// DRAW PLAYER
 // =====================================================
 
 function drawPlayer() {
-
-  // Don't draw bird once lose image is showing
 
   if (
     gameOver &&
@@ -1344,9 +1667,9 @@ function drawPlayer() {
   );
 
 
-  // -----------------------------
+  // ===================================================
   // TAIL
-  // -----------------------------
+  // ===================================================
 
   ctx.fillStyle =
     "#ff922b";
@@ -1362,7 +1685,7 @@ function drawPlayer() {
 
 
   ctx.lineTo(
-    -59,
+    -60,
     -20
   );
 
@@ -1390,9 +1713,9 @@ function drawPlayer() {
   ctx.fill();
 
 
-  // -----------------------------
-  // BIRD BODY
-  // -----------------------------
+  // ===================================================
+  // BODY
+  // ===================================================
 
   ctx.fillStyle =
     "#ffd43b";
@@ -1421,10 +1744,8 @@ function drawPlayer() {
   ctx.fill();
 
 
-  // Body outline
-
   ctx.strokeStyle =
-    "rgba(0,0,0,0.35)";
+    "rgba(0,0,0,.35)";
 
 
   ctx.lineWidth = 3;
@@ -1432,9 +1753,9 @@ function drawPlayer() {
   ctx.stroke();
 
 
-  // -----------------------------
+  // ===================================================
   // WING
-  // -----------------------------
+  // ===================================================
 
   ctx.fillStyle =
     "#f59f00";
@@ -1463,9 +1784,9 @@ function drawPlayer() {
   ctx.fill();
 
 
-  // -----------------------------
+  // ===================================================
   // BEAK
-  // -----------------------------
+  // ===================================================
 
   ctx.fillStyle =
     "#ff6b35";
@@ -1497,11 +1818,9 @@ function drawPlayer() {
   ctx.fill();
 
 
-  // -----------------------------
+  // ===================================================
   // FRIEND FACE
-  // -----------------------------
-
-  // Large face on bird's head
+  // ===================================================
 
   const faceX = 12;
 
@@ -1534,12 +1853,15 @@ function drawPlayer() {
 
 
   if (
-    friendImg.complete &&
-    friendImg.naturalWidth > 0
-  ) {
 
-    // Crop friend photo to square
-    // instead of stretching face.
+    friendImg.complete
+
+    &&
+
+    friendImg.naturalWidth >
+    0
+
+  ) {
 
     const size =
       Math.min(
@@ -1628,13 +1950,15 @@ function drawPlayer() {
 
 
 // =====================================================
-// DRAW SCORE
+// SCORE
 // =====================================================
 
 function drawScore() {
 
   if (gameOver) {
+
     return;
+
   }
 
 
@@ -1646,18 +1970,19 @@ function drawScore() {
     "round";
 
 
+  ctx.fillStyle =
+    "white";
+
+
+  ctx.strokeStyle =
+    "rgba(0,0,0,.6)";
+
+
   ctx.font =
     "bold 42px Arial";
 
 
   ctx.lineWidth = 7;
-
-  ctx.strokeStyle =
-    "rgba(0,0,0,0.55)";
-
-
-  ctx.fillStyle =
-    "white";
 
 
   ctx.strokeText(
@@ -1732,7 +2057,7 @@ function drawStartScreen() {
 
 
   ctx.fillStyle =
-    "rgba(0,0,0,0.50)";
+    "rgba(0,0,0,.52)";
 
 
   ctx.fillRect(
@@ -1741,17 +2066,18 @@ function drawStartScreen() {
     190,
 
     canvas.width - 70,
+
     185
 
   );
 
 
-  ctx.textAlign =
-    "center";
-
-
   ctx.fillStyle =
     "white";
+
+
+  ctx.textAlign =
+    "center";
 
 
   ctx.font =
@@ -1790,7 +2116,7 @@ function drawStartScreen() {
 
   ctx.fillText(
 
-    "Click • Tap • SPACE • ↑",
+    "Tap • Click • SPACE • ↑",
 
     canvas.width / 2,
 
@@ -1802,17 +2128,19 @@ function drawStartScreen() {
 
 
 // =====================================================
-// DRAW GAME OVER
+// GAME OVER SCREEN
 // =====================================================
 
 function drawGameOver() {
 
   if (!gameOver) {
+
     return;
+
   }
 
 
-  // Black fallback
+  // Black backup
 
   ctx.fillStyle =
     "black";
@@ -1829,7 +2157,7 @@ function drawGameOver() {
   );
 
 
-  // Full-screen lose photo
+  // FULL SCREEN lose.png
 
   drawCoverImage(
 
@@ -1844,10 +2172,10 @@ function drawGameOver() {
   );
 
 
-  // Dark overlay
+  // Small overlay
 
   ctx.fillStyle =
-    "rgba(0,0,0,0.22)";
+    "rgba(0,0,0,.20)";
 
 
   ctx.fillRect(
@@ -1861,10 +2189,14 @@ function drawGameOver() {
   );
 
 
-  // Text
+  // GAME OVER TEXT
 
   ctx.textAlign =
     "center";
+
+
+  ctx.lineJoin =
+    "round";
 
 
   ctx.fillStyle =
@@ -1873,10 +2205,6 @@ function drawGameOver() {
 
   ctx.strokeStyle =
     "black";
-
-
-  ctx.lineJoin =
-    "round";
 
 
   ctx.lineWidth = 8;
@@ -1908,6 +2236,8 @@ function drawGameOver() {
   );
 
 
+  // SCORE
+
   ctx.font =
     "bold 27px Arial";
 
@@ -1917,7 +2247,8 @@ function drawGameOver() {
 
   ctx.strokeText(
 
-    "SCORE: " + score,
+    "SCORE: " +
+    score,
 
     canvas.width / 2,
 
@@ -1928,7 +2259,8 @@ function drawGameOver() {
 
   ctx.fillText(
 
-    "SCORE: " + score,
+    "SCORE: " +
+    score,
 
     canvas.width / 2,
 
@@ -1936,6 +2268,8 @@ function drawGameOver() {
 
   );
 
+
+  // BEST
 
   ctx.font =
     "bold 20px Arial";
@@ -1968,7 +2302,7 @@ function drawGameOver() {
 
 
 // =====================================================
-// DRAW EVERYTHING
+// DRAW
 // =====================================================
 
 function draw() {
@@ -1984,7 +2318,7 @@ function draw() {
   drawStartScreen();
 
 
-  // Last so lose.png covers entire game
+  // Always last.
 
   drawGameOver();
 
@@ -2013,7 +2347,7 @@ gameLoop();
 
 
 // =====================================================
-// TOUCH + MOUSE
+// MOBILE + MOUSE
 // =====================================================
 
 canvas.addEventListener(
@@ -2023,6 +2357,7 @@ canvas.addEventListener(
   function(event) {
 
     event.preventDefault();
+
 
     jump();
 
@@ -2043,11 +2378,13 @@ document.addEventListener(
 
     if (
 
-      event.code === "Space"
+      event.code ===
+      "Space"
 
       ||
 
-      event.code === "ArrowUp"
+      event.code ===
+      "ArrowUp"
 
     ) {
 
@@ -2064,7 +2401,7 @@ document.addEventListener(
 
 
 // =====================================================
-// RESTART
+// RESTART BUTTON
 // =====================================================
 
 restartBtn.addEventListener(
