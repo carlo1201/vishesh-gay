@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Friend Flappy 😂</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+#gameBox {
+    position: relative;
+    width: min(100vw, 400px);
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 3px solid white;
+    touch-action: none;
+}
+
+#restartBtn {
+    position: absolute;
+
+    left: 50%;
+    bottom: 60px;
+
+    transform: translateX(-50%);
+
+    padding: 14px 30px;
+
+    border: 3px solid white;
+    border-radius: 15px;
+
+    background: black;
+    color: white;
+
+    font-size: 20px;
+    font-weight: bold;
+
+    cursor: pointer;
+
+    display: none;
+
+    z-index: 10;
+}
+
+#restartBtn:hover {
+    transform: translateX(-50%) scale(1.05);
+}
+</style>
+</head>
+
+<body>
+
+<div id="gameBox">
+
+    <canvas
+        id="game"
+        width="400"
+        height="600">
+    </canvas>
+
+    <button id="restartBtn">
+        RESTART 😂
+    </button>
+
+</div>
+
+
+<script>
+
+// ======================================================
+// CANVAS
+// ======================================================
+
+const canvas =
+    document.getElementById("game");
+
+const ctx =
+    canvas.getContext("2d");
+
+const restartBtn =
+    document.getElementById("restartBtn");
+
+
+// ======================================================
+// IMAGES
+// ======================================================
+
+// Friend face - bird ke muh par
+
+const friendImg = new Image();
+friendImg.src = "friend.png";
+
+
+// Haarne ke baad full screen photo
+
+const loseImg = new Image();
+loseImg.src = "lose.png";
+
+
+// ======================================================
+// AUDIO
+// ======================================================
+
+// Random touch voices
+
+const touchVoices = [
+
+    new Audio("touch1.mp3"),
+
+    new Audio("touch2.mp3"),
+
+    new Audio("touch3.mp3")
+
+];
+
+
+// Haarne wali voice
+
+const gameOverSound =
+    new Audio("gameover.mp3");
+
+
+// Background song
+
+const backgroundMusic =
+    new Audio("music.mp3");
+
+backgroundMusic.loop = true;
+
+backgroundMusic.volume = 0.40;
+
+
+// ======================================================
+// PLAYER / BIRD
+// ======================================================
+
+const player = {
+
+    x: 70,
+
+    y: 260,
+
+    width: 82,
+
+    height: 60,
+
+    velocity: 0,
+
+    rotation: 0,
+
+    scale: 1
+
+};
+
+
+// ======================================================
+// GAME SETTINGS
+// ======================================================
+
+const gravity = 0.45;
+
+const jumpPower = -7.5;
+
+const pipeWidth = 65;
+
+const pipeGap = 180;
+
+let pipeSpeed = 3;
+
+
+// ======================================================
+// GAME STATE
+// ======================================================
+
+let pipes = [];
+
+let frame = 0;
+
+let score = 0;
+
+let started = false;
+
+let gameOver = false;
+
+let deathAnimation = false;
+
+
+// ======================================================
+// HIGH SCORE
+// ======================================================
+
+let highScore =
+    Number(
+        localStorage.getItem(
+            "friendFlappyHighScore"
+        )
+    ) || 0;
+
+
+// ======================================================
+// BACKGROUND
+// ======================================================
+
+let cloud1 = 40;
+
+let cloud2 = 260;
+
+let groundOffset = 0;
+
+
+// ======================================================
+// RANDOM TOUCH VOICE
+// ======================================================
+
+function playRandomVoice() {
+
+    const random =
+        Math.floor(
+            Math.random() *
+            touchVoices.length
+        );
+
+
+    const sound =
+        touchVoices[random];
+
+
+    sound.pause();
+
+    sound.currentTime = 0;
+
+
+    sound.play()
+        .catch(() => {});
+
+}
+
+
+// ======================================================
+// START MUSIC
+// ======================================================
+
+function startMusic() {
+
+    if (backgroundMusic.paused) {
+
+        backgroundMusic.play()
+            .catch(() => {});
+
+    }
+
+}
+
+
+// ======================================================
+// CREATE PIPE
+// ======================================================
+
+function createPipe() {
+
+    const minimumTop = 80;
+
+    const maximumTop =
+        canvas.height -
+        pipeGap -
+        140;
+
+
+    const topHeight =
+        Math.floor(
+            Math.random() *
+            (
+                maximumTop -
+                minimumTop
+            )
+        )
+        +
+        minimumTop;
+
+
+    pipes.push({
+
+        x: canvas.width,
+
+        width: pipeWidth,
+
+        top: topHeight,
+
+        bottom:
+            topHeight +
+            pipeGap,
+
+        counted: false
+
+    });
+
+}
+
+
+// ======================================================
+// JUMP
+// ======================================================
+
+function jump() {
+
+    if (gameOver) {
+        return;
+    }
+
+
+    // First touch starts game + music
+
+    if (!started) {
+
+        started = true;
+
+        pipes = [];
+
+        frame = 0;
+
+
+        startMusic();
+
+    }
+
+
+    player.velocity =
+        jumpPower;
+
+
+    // Jump animation
+
+    player.rotation =
+        -0.30;
+
+    player.scale =
+        1.10;
+
+
+    // Random funny voice
+
+    playRandomVoice();
+
+}
+
+
+// ======================================================
+// COLLISION
+// ======================================================
+
+function checkCollision(pipe) {
+
+    // Smaller collision box
+    // so face/bird doesn't die unfairly
+
+    const paddingX = 13;
+
+    const paddingY = 8;
+
+
+    const left =
+        player.x +
+        paddingX;
+
+
+    const right =
+        player.x +
+        player.width -
+        paddingX;
+
+
+    const top =
+        player.y +
+        paddingY;
+
+
+    const bottom =
+        player.y +
+        player.height -
+        paddingY;
+
+
+    const pipeLeft =
+        pipe.x;
+
+
+    const pipeRight =
+        pipe.x +
+        pipe.width;
+
+
+    const touchingX =
+
+        right > pipeLeft &&
+
+        left < pipeRight;
+
+
+    if (touchingX) {
+
+        if (
+            top < pipe.top ||
+            bottom > pipe.bottom
+        ) {
+
+            return true;
+
+        }
+
+    }
+
+
+    return false;
+
+}
+
+
+// ======================================================
+// GAME OVER
+// ======================================================
+
+function endGame() {
+
+    if (gameOver) {
+        return;
+    }
+
+
+    gameOver = true;
+
+    deathAnimation = true;
+
+
+    // Stop background song
+
+    backgroundMusic.pause();
+
+
+    // Save high score
+
+    if (score > highScore) {
+
+        highScore =
+            score;
+
+
+        localStorage.setItem(
+
+            "friendFlappyHighScore",
+
+            highScore
+
+        );
+
+    }
+
+
+    // Game Over voice
+
+    gameOverSound.pause();
+
+    gameOverSound.currentTime = 0;
+
+
+    gameOverSound.play()
+        .catch(() => {});
+
+
+    // Restart button thoda delay se
+
+    setTimeout(() => {
+
+        if (gameOver) {
+
+            restartBtn.style.display =
+                "block";
+
+        }
+
+    }, 900);
+
+}
+
+
+// ======================================================
+// RESTART
+// ======================================================
+
+function restartGame() {
+
+    // Stop sounds
+
+    gameOverSound.pause();
+
+    gameOverSound.currentTime = 0;
+
+
+    backgroundMusic.pause();
+
+    backgroundMusic.currentTime = 0;
+
+
+    // Reset player
+
+    player.y = 260;
+
+    player.velocity = 0;
+
+    player.rotation = 0;
+
+    player.scale = 1;
+
+
+    // Reset game
+
+    pipes = [];
+
+    frame = 0;
+
+    score = 0;
+
+    pipeSpeed = 3;
+
+
+    started = false;
+
+    gameOver = false;
+
+    deathAnimation = false;
+
+
+    restartBtn.style.display =
+        "none";
+
+}
+
+
+// ======================================================
+// UPDATE PLAYER
+// ======================================================
+
+function updatePlayer() {
+
+    if (!started) {
+        return;
+    }
+
+
+    if (!gameOver) {
+
+        player.velocity +=
+            gravity;
+
+
+        player.y +=
+            player.velocity;
+
+
+        // Rotate down while falling
+
+        if (
+            player.velocity > 0
+        ) {
+
+            player.rotation +=
+                0.025;
+
+        }
+
+
+        if (
+            player.rotation > 1
+        ) {
+
+            player.rotation = 1;
+
+        }
+
+
+        // Scale returns to normal
+
+        player.scale +=
+            (
+                1 -
+                player.scale
+            )
+            *
+            0.15;
+
+    }
+
+}
+
+
+// ======================================================
+// DEATH ANIMATION
+// ======================================================
+
+function updateDeathAnimation() {
+
+    if (!deathAnimation) {
+        return;
+    }
+
+
+    player.velocity +=
+        0.65;
+
+
+    player.y +=
+        player.velocity;
+
+
+    player.rotation +=
+        0.12;
+
+
+    if (
+        player.y >
+        canvas.height +
+        100
+    ) {
+
+        deathAnimation =
+            false;
+
+    }
+
+}
+
+
+// ======================================================
+// UPDATE PIPES
+// ======================================================
+
+function updatePipes() {
+
+    if (
+        !started ||
+        gameOver
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        frame % 100 === 0
+    ) {
+
+        createPipe();
+
+    }
+
+
+    for (
+        const pipe of pipes
+    ) {
+
+        pipe.x -=
+            pipeSpeed;
+
+
+        if (
+            checkCollision(pipe)
+        ) {
+
+            endGame();
+
+            return;
+
+        }
+
+
+        // Score
+
+        if (
+            !pipe.counted &&
+            pipe.x +
+            pipe.width <
+            player.x
+        ) {
+
+            pipe.counted =
+                true;
+
+
+            score++;
+
+
+            // Difficulty increase
+
+            pipeSpeed =
+                Math.min(
+
+                    5.5,
+
+                    3 +
+                    score *
+                    0.05
+
+                );
+
+        }
+
+    }
+
+
+    pipes =
+        pipes.filter(
+
+            pipe =>
+                pipe.x > -100
+
+        );
+
+}
+
+
+// ======================================================
+// WORLD COLLISION
+// ======================================================
+
+function checkWorldCollision() {
+
+    if (
+        !started ||
+        gameOver
+    ) {
+
+        return;
+
+    }
+
+
+    // Ceiling
+
+    if (
+        player.y <= 0
+    ) {
+
+        player.y = 0;
+
+        endGame();
+
+    }
+
+
+    // Ground
+
+    if (
+        player.y +
+        player.height >=
+        canvas.height
+    ) {
+
+        endGame();
+
+    }
+
+}
+
+
+// ======================================================
+// MOVING BACKGROUND
+// ======================================================
+
+function updateBackground() {
+
+    if (
+        !started ||
+        gameOver
+    ) {
+
+        return;
+
+    }
+
+
+    cloud1 -= 0.35;
+
+    cloud2 -= 0.50;
+
+
+    if (
+        cloud1 < -100
+    ) {
+
+        cloud1 =
+            canvas.width +
+            50;
+
+    }
+
+
+    if (
+        cloud2 < -100
+    ) {
+
+        cloud2 =
+            canvas.width +
+            100;
+
+    }
+
+
+    groundOffset -=
+        pipeSpeed;
+
+
+    if (
+        groundOffset <= -40
+    ) {
+
+        groundOffset = 0;
+
+    }
+
+}
+
+
+// ======================================================
+// UPDATE
+// ======================================================
+
+function update() {
+
+    updateBackground();
+
+    updatePlayer();
+
+    updatePipes();
+
+    checkWorldCollision();
+
+    updateDeathAnimation();
+
+
+    if (
+        started &&
+        !gameOver
+    ) {
+
+        frame++;
+
+    }
+
+}
+
+
+// ======================================================
+// DRAW CLOUD
+// ======================================================
+
+function drawCloud(
+    x,
+    y,
+    scale
+) {
+
+    ctx.save();
+
+
+    ctx.translate(
+        x,
+        y
+    );
+
+
+    ctx.scale(
+        scale,
+        scale
+    );
+
+
+    ctx.fillStyle =
+        "rgba(255,255,255,0.85)";
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+        0,
+        0,
+        25,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.arc(
+        30,
+        -10,
+        30,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.arc(
+        65,
+        0,
+        25,
+        0,
+        Math.PI * 2
+    );
+
+
+    ctx.fill();
+
+
+    ctx.restore();
+
+}
+
+
+// ======================================================
+// DRAW BACKGROUND
+// ======================================================
+
+function drawBackground() {
+
+    // Sky
+
+    ctx.fillStyle =
+        "#70c5ce";
+
+
+    ctx.fillRect(
+
+        0,
+        0,
+
+        canvas.width,
+        canvas.height
+
+    );
+
+
+    // Sun
+
+    ctx.fillStyle =
+        "#ffe066";
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+        330,
+        80,
+
+        38,
+
+        0,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+
+    // Clouds
+
+    drawCloud(
+        cloud1,
+        130,
+        1
+    );
+
+
+    drawCloud(
+        cloud2,
+        230,
+        0.8
+    );
+
+
+    // Far hills
+
+    ctx.fillStyle =
+        "#82c47c";
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+        60,
+        600,
+
+        180,
+
+        Math.PI,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+        300,
+        600,
+
+        220,
+
+        Math.PI,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+
+    // Ground
+
+    ctx.fillStyle =
+        "#c79b5d";
+
+
+    ctx.fillRect(
+
+        0,
+        570,
+
+        canvas.width,
+        30
+
+    );
+
+
+    // Moving ground pattern
+
+    ctx.fillStyle =
+        "#967044";
+
+
+    for (
+
+        let x =
+            groundOffset;
+
+        x <
+            canvas.width +
+            40;
+
+        x += 40
+
+    ) {
+
+        ctx.fillRect(
+
+            x,
+            570,
+
+            20,
+            30
+
+        );
+
+    }
+
+}
+
+
+// ======================================================
+// DRAW PIPES
+// ======================================================
+
+function drawPipes() {
+
+    for (
+        const pipe of pipes
+    ) {
+
+        // TOP PIPE
+
+        ctx.fillStyle =
+            "#43aa48";
+
+
+        ctx.fillRect(
+
+            pipe.x,
+
+            0,
+
+            pipe.width,
+
+            pipe.top
+
+        );
+
+
+        // Top pipe end
+
+        ctx.fillStyle =
+            "#318c39";
+
+
+        ctx.fillRect(
+
+            pipe.x - 5,
+
+            pipe.top - 25,
+
+            pipe.width + 10,
+
+            25
+
+        );
+
+
+        // BOTTOM PIPE
+
+        ctx.fillStyle =
+            "#43aa48";
+
+
+        ctx.fillRect(
+
+            pipe.x,
+
+            pipe.bottom,
+
+            pipe.width,
+
+            canvas.height -
+            pipe.bottom
+
+        );
+
+
+        // Bottom pipe end
+
+        ctx.fillStyle =
+            "#318c39";
+
+
+        ctx.fillRect(
+
+            pipe.x - 5,
+
+            pipe.bottom,
+
+            pipe.width + 10,
+
+            25
+
+        );
+
+    }
+
+}
+
+
+// ======================================================
+// DRAW BIRD + FRIEND FACE
+// ======================================================
+
+function drawPlayer() {
+
+    const centerX =
+        player.x +
+        player.width / 2;
+
+
+    const centerY =
+        player.y +
+        player.height / 2;
+
+
+    ctx.save();
+
+
+    ctx.translate(
+
+        centerX,
+
+        centerY
+
+    );
+
+
+    ctx.rotate(
+        player.rotation
+    );
+
+
+    ctx.scale(
+
+        player.scale,
+
+        player.scale
+
+    );
+
+
+    // ----------------------------------
+    // BIRD BODY
+    // ----------------------------------
+
+    ctx.fillStyle =
+        "#ffd43b";
+
+
+    ctx.beginPath();
+
+
+    ctx.ellipse(
+
+        -5,
+        4,
+
+        40,
+        27,
+
+        0,
+
+        0,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+
+    // ----------------------------------
+    // WING
+    // ----------------------------------
+
+    ctx.fillStyle =
+        "#f59f00";
+
+
+    ctx.beginPath();
+
+
+    ctx.ellipse(
+
+        -25,
+        10,
+
+        20,
+        13,
+
+        -0.3,
+
+        0,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.fill();
+
+
+    // ----------------------------------
+    // TAIL
+    // ----------------------------------
+
+    ctx.fillStyle =
+        "#ff922b";
+
+
+    ctx.beginPath();
+
+
+    ctx.moveTo(
+        -40,
+        0
+    );
+
+
+    ctx.lineTo(
+        -60,
+        -13
+    );
+
+
+    ctx.lineTo(
+        -55,
+        12
+    );
+
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    // ----------------------------------
+    // BEAK
+    // ----------------------------------
+
+    ctx.fillStyle =
+        "#ff6b35";
+
+
+    ctx.beginPath();
+
+
+    ctx.moveTo(
+        34,
+        4
+    );
+
+
+    ctx.lineTo(
+        55,
+        11
+    );
+
+
+    ctx.lineTo(
+        34,
+        18
+    );
+
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    // ----------------------------------
+    // FRIEND FACE
+    // ----------------------------------
+
+    // Face intentionally thoda bada hai
+
+    const faceX = 12;
+
+    const faceY = -4;
+
+    const faceRadius = 29;
+
+
+    ctx.save();
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+        faceX,
+        faceY,
+
+        faceRadius,
+
+        0,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.clip();
+
+
+    ctx.drawImage(
+
+        friendImg,
+
+        faceX -
+        faceRadius,
+
+        faceY -
+        faceRadius,
+
+        faceRadius * 2,
+
+        faceRadius * 2
+
+    );
+
+
+    ctx.restore();
+
+
+    // Face border
+
+    ctx.strokeStyle =
+        "white";
+
+
+    ctx.lineWidth = 3;
+
+
+    ctx.beginPath();
+
+
+    ctx.arc(
+
+        faceX,
+        faceY,
+
+        faceRadius,
+
+        0,
+
+        Math.PI * 2
+
+    );
+
+
+    ctx.stroke();
+
+
+    ctx.restore();
+
+}
+
+
+// ======================================================
+// SCORE
+// ======================================================
+
+function drawScore() {
+
+    if (gameOver) {
+        return;
+    }
+
+
+    ctx.textAlign =
+        "center";
+
+
+    ctx.fillStyle =
+        "white";
+
+
+    ctx.strokeStyle =
+        "rgba(0,0,0,0.5)";
+
+
+    ctx.lineWidth = 5;
+
+
+    ctx.font =
+        "bold 40px Arial";
+
+
+    ctx.strokeText(
+
+        score,
+
+        canvas.width / 2,
+
+        60
+
+    );
+
+
+    ctx.fillText(
+
+        score,
+
+        canvas.width / 2,
+
+        60
+
+    );
+
+
+    ctx.font =
+        "bold 16px Arial";
+
+
+    ctx.fillText(
+
+        "BEST: " +
+        highScore,
+
+        canvas.width / 2,
+
+        88
+
+    );
+
+}
+
+
+// ======================================================
+// START SCREEN
+// ======================================================
+
+function drawStartScreen() {
+
+    if (
+        started ||
+        gameOver
+    ) {
+
+        return;
+
+    }
+
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.55)";
+
+
+    ctx.fillRect(
+
+        35,
+        190,
+
+        330,
+        160
+
+    );
+
+
+    ctx.fillStyle =
+        "white";
+
+
+    ctx.textAlign =
+        "center";
+
+
+    ctx.font =
+        "bold 27px Arial";
+
+
+    ctx.fillText(
+
+        "FRIEND FLAPPY 😂",
+
+        canvas.width / 2,
+
+        240
+
+    );
+
+
+    ctx.font =
+        "18px Arial";
+
+
+    ctx.fillText(
+
+        "Tap / Click / SPACE",
+
+        canvas.width / 2,
+
+        285
+
+    );
+
+
+    ctx.font =
+        "15px Arial";
+
+
+    ctx.fillText(
+
+        "to start",
+
+        canvas.width / 2,
+
+        315
+
+    );
+
+}
+
+
+// ======================================================
+// FULL SCREEN LOSE PHOTO
+// ======================================================
+
+function drawGameOver() {
+
+    if (!gameOver) {
+        return;
+    }
+
+
+    // Dark background in case
+    // image hasn't loaded yet
+
+    ctx.fillStyle =
+        "black";
+
+
+    ctx.fillRect(
+
+        0,
+        0,
+
+        canvas.width,
+        canvas.height
+
+    );
+
+
+    // FULL SCREEN LOSE IMAGE
+
+    if (
+        loseImg.complete &&
+        loseImg.naturalWidth > 0
+    ) {
+
+        // Cover-style drawing:
+        // image full screen cover karegi
+        // bina stretch kiye
+
+        const imageRatio =
+            loseImg.width /
+            loseImg.height;
+
+
+        const canvasRatio =
+            canvas.width /
+            canvas.height;
+
+
+        let drawWidth;
+
+        let drawHeight;
+
+        let drawX;
+
+        let drawY;
+
+
+        if (
+            imageRatio >
+            canvasRatio
+        ) {
+
+            drawHeight =
+                canvas.height;
+
+
+            drawWidth =
+                drawHeight *
+                imageRatio;
+
+
+            drawX =
+                (
+                    canvas.width -
+                    drawWidth
+                )
+                /
+                2;
+
+
+            drawY = 0;
+
+        }
+
+        else {
+
+            drawWidth =
+                canvas.width;
+
+
+            drawHeight =
+                drawWidth /
+                imageRatio;
+
+
+            drawX = 0;
+
+
+            drawY =
+                (
+                    canvas.height -
+                    drawHeight
+                )
+                /
+                2;
+
+        }
+
+
+        ctx.drawImage(
+
+            loseImg,
+
+            drawX,
+            drawY,
+
+            drawWidth,
+            drawHeight
+
+        );
+
+    }
+
+
+    // Slight dark overlay
+    // so score readable rahe
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.25)";
+
+
+    ctx.fillRect(
+
+        0,
+        0,
+
+        canvas.width,
+        canvas.height
+
+    );
+
+
+    // GAME OVER
+
+    ctx.textAlign =
+        "center";
+
+
+    ctx.fillStyle =
+        "white";
+
+
+    ctx.strokeStyle =
+        "black";
+
+
+    ctx.lineWidth = 7;
+
+
+    ctx.font =
+        "bold 36px Arial";
+
+
+    ctx.strokeText(
+
+        "GAME OVER 😂",
+
+        canvas.width / 2,
+
+        65
+
+    );
+
+
+    ctx.fillText(
+
+        "GAME OVER 😂",
+
+        canvas.width / 2,
+
+        65
+
+    );
+
+
+    // Score
+
+    ctx.font =
+        "bold 25px Arial";
+
+
+    ctx.strokeText(
+
+        "SCORE: " + score,
+
+        canvas.width / 2,
+
+        110
+
+    );
+
+
+    ctx.fillText(
+
+        "SCORE: " + score,
+
+        canvas.width / 2,
+
+        110
+
+    );
+
+
+    // High score
+
+    ctx.font =
+        "bold 19px Arial";
+
+
+    ctx.strokeText(
+
+        "BEST: " +
+        highScore,
+
+        canvas.width / 2,
+
+        145
+
+    );
+
+
+    ctx.fillText(
+
+        "BEST: " +
+        highScore,
+
+        canvas.width / 2,
+
+        145
+
+    );
+
+}
+
+
+// ======================================================
+// DRAW
+// ======================================================
+
+function draw() {
+
+    drawBackground();
+
+    drawPipes();
+
+    drawPlayer();
+
+    drawScore();
+
+    drawStartScreen();
+
+    // MUST remain last
+    // so lose photo covers everything
+
+    drawGameOver();
+
+}
+
+
+// ======================================================
+// GAME LOOP
+// ======================================================
+
+function gameLoop() {
+
+    update();
+
+    draw();
+
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+gameLoop();
+
+
+// ======================================================
+// MOBILE + MOUSE
+// ======================================================
+
+canvas.addEventListener(
+
+    "pointerdown",
+
+    function () {
+
+        jump();
+
+    }
+
+);
+
+
+// ======================================================
+// KEYBOARD
+// ======================================================
+
+document.addEventListener(
+
+    "keydown",
+
+    function (event) {
+
+        if (
+            event.code ===
+            "Space"
+            ||
+            event.code ===
+            "ArrowUp"
+        ) {
+
+            event.preventDefault();
+
+
+            jump();
+
+        }
+
+    }
+
+);
+
+
+// ======================================================
+// RESTART BUTTON
+// ======================================================
+
+restartBtn.addEventListener(
+
+    "click",
+
+    function (event) {
+
+        event.stopPropagation();
+
+
+        restartGame();
+
+    }
+
+);
+
+</script>
+
+</body>
+</html>
