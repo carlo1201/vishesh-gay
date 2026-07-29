@@ -3,66 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Friend Flappy 😂</title>
+<title>Friend Flappy</title>
 
 <style>
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #111;
+  font-family: Arial, sans-serif;
 }
 
 body {
-    margin: 0;
-    min-height: 100vh;
-    background: #111;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #gameBox {
-    position: relative;
-    width: min(100vw, 400px);
+  position: relative;
+  width: min(100vw, 430px);
+  height: min(100vh, 760px);
+  overflow: hidden;
+  background: #000;
 }
 
 canvas {
-    display: block;
-    width: 100%;
-    height: auto;
-    border: 3px solid white;
-    touch-action: none;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
 }
 
 #restartBtn {
-    position: absolute;
+  position: absolute;
+  z-index: 20;
 
-    left: 50%;
-    bottom: 60px;
+  left: 50%;
+  bottom: 55px;
+  transform: translateX(-50%);
 
-    transform: translateX(-50%);
+  display: none;
 
-    padding: 14px 30px;
+  border: 3px solid white;
+  border-radius: 15px;
 
-    border: 3px solid white;
-    border-radius: 15px;
+  background: rgba(0,0,0,0.8);
+  color: white;
 
-    background: black;
-    color: white;
+  padding: 13px 28px;
 
-    font-size: 20px;
-    font-weight: bold;
+  font-size: 20px;
+  font-weight: bold;
 
-    cursor: pointer;
-
-    display: none;
-
-    z-index: 10;
+  cursor: pointer;
 }
 
-#restartBtn:hover {
-    transform: translateX(-50%) scale(1.05);
+#restartBtn:active {
+  transform: translateX(-50%) scale(0.95);
 }
 </style>
 </head>
@@ -71,125 +75,143 @@ canvas {
 
 <div id="gameBox">
 
-    <canvas
-        id="game"
-        width="400"
-        height="600">
-    </canvas>
+  <canvas
+    id="game"
+    width="430"
+    height="760">
+  </canvas>
 
-    <button id="restartBtn">
-        RESTART 😂
-    </button>
+  <button id="restartBtn">
+    RESTART 🔄
+  </button>
 
 </div>
 
 
 <script>
 
-// ======================================================
+// =====================================================
 // CANVAS
-// ======================================================
+// =====================================================
 
-const canvas =
-    document.getElementById("game");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-const ctx =
-    canvas.getContext("2d");
-
-const restartBtn =
-    document.getElementById("restartBtn");
+const restartBtn = document.getElementById("restartBtn");
 
 
-// ======================================================
+// =====================================================
 // IMAGES
-// ======================================================
+// =====================================================
 
-// Friend face - bird ke muh par
+// Friend photo
 
 const friendImg = new Image();
 friendImg.src = "friend.png";
 
 
-// Haarne ke baad full screen photo
+// Game over photo
 
 const loseImg = new Image();
 loseImg.src = "lose.png";
 
 
-// ======================================================
+// Six backgrounds
+
+const backgrounds = [];
+
+for (let i = 1; i <= 6; i++) {
+
+  const img = new Image();
+
+  img.src = "bg" + i + ".png";
+
+  backgrounds.push(img);
+
+}
+
+
+// =====================================================
 // AUDIO
-// ======================================================
+// =====================================================
 
-// Random touch voices
+// Intro/start voice
 
-const touchVoices = [
+const startSound = new Audio("start.mp3");
 
-    new Audio("touch1.mp3"),
 
-    new Audio("touch2.mp3"),
+// Three tap voices
 
-    new Audio("touch3.mp3")
-
+const touchSounds = [
+  new Audio("touch1.mp3"),
+  new Audio("touch2.mp3"),
+  new Audio("touch3.mp3")
 ];
 
 
-// Haarne wali voice
+// Game over voice
 
-const gameOverSound =
-    new Audio("gameover.mp3");
-
-
-// Background song
-
-const backgroundMusic =
-    new Audio("music.mp3");
-
-backgroundMusic.loop = true;
-
-backgroundMusic.volume = 0.40;
+const gameOverSound = new Audio("gameover.mp3");
 
 
-// ======================================================
-// PLAYER / BIRD
-// ======================================================
+// Prevent sounds from being too loud
+
+startSound.volume = 1;
+gameOverSound.volume = 1;
+
+touchSounds.forEach(sound => {
+  sound.volume = 1;
+});
+
+
+// =====================================================
+// PLAYER
+// =====================================================
 
 const player = {
 
-    x: 70,
+  x: 75,
+  y: 320,
 
-    y: 260,
+  width: 92,
+  height: 68,
 
-    width: 82,
+  velocity: 0,
 
-    height: 60,
+  rotation: 0,
 
-    velocity: 0,
-
-    rotation: 0,
-
-    scale: 1
+  scale: 1
 
 };
 
 
-// ======================================================
-// GAME SETTINGS
-// ======================================================
+// =====================================================
+// PHYSICS
+// =====================================================
 
-const gravity = 0.45;
+const gravity = 0.43;
 
-const jumpPower = -7.5;
-
-const pipeWidth = 65;
-
-const pipeGap = 180;
-
-let pipeSpeed = 3;
+const jumpPower = -7.6;
 
 
-// ======================================================
+// =====================================================
+// PIPE SETTINGS
+// =====================================================
+
+const pipeWidth = 68;
+
+const pipeGap = 205;
+
+let pipeSpeed = 3.1;
+
+
+// =====================================================
 // GAME STATE
-// ======================================================
+// =====================================================
+
+let started = false;
+
+let gameOver = false;
 
 let pipes = [];
 
@@ -197,1700 +219,1792 @@ let frame = 0;
 
 let score = 0;
 
-let started = false;
-
-let gameOver = false;
-
-let deathAnimation = false;
+let deathVelocity = 0;
 
 
-// ======================================================
+// =====================================================
 // HIGH SCORE
-// ======================================================
+// =====================================================
 
 let highScore =
-    Number(
-        localStorage.getItem(
-            "friendFlappyHighScore"
-        )
-    ) || 0;
+  Number(
+    localStorage.getItem("friendFlappyBest")
+  ) || 0;
 
 
-// ======================================================
-// BACKGROUND
-// ======================================================
+// =====================================================
+// BACKGROUND SCROLLING
+// =====================================================
 
-let cloud1 = 40;
+let backgroundIndex = 0;
 
-let cloud2 = 260;
+let nextBackgroundIndex = 1;
 
-let groundOffset = 0;
+let backgroundX = 0;
 
 
-// ======================================================
-// RANDOM TOUCH VOICE
-// ======================================================
+// How quickly scenery moves
 
-function playRandomVoice() {
+const backgroundSpeed = 1.35;
 
-    const random =
+
+// =====================================================
+// DRAW IMAGE LIKE CSS "COVER"
+// =====================================================
+
+function drawCoverImage(img, x, y, width, height) {
+
+  if (
+    !img.complete ||
+    img.naturalWidth === 0
+  ) {
+    return;
+  }
+
+
+  const imageRatio =
+    img.naturalWidth /
+    img.naturalHeight;
+
+
+  const boxRatio =
+    width /
+    height;
+
+
+  let sourceX = 0;
+  let sourceY = 0;
+
+  let sourceWidth =
+    img.naturalWidth;
+
+  let sourceHeight =
+    img.naturalHeight;
+
+
+  if (imageRatio > boxRatio) {
+
+    sourceWidth =
+      img.naturalHeight *
+      boxRatio;
+
+
+    sourceX =
+      (
+        img.naturalWidth -
+        sourceWidth
+      ) / 2;
+
+  }
+
+  else {
+
+    sourceHeight =
+      img.naturalWidth /
+      boxRatio;
+
+
+    sourceY =
+      (
+        img.naturalHeight -
+        sourceHeight
+      ) / 2;
+
+  }
+
+
+  ctx.drawImage(
+
+    img,
+
+    sourceX,
+    sourceY,
+
+    sourceWidth,
+    sourceHeight,
+
+    x,
+    y,
+
+    width,
+    height
+
+  );
+
+}
+
+
+// =====================================================
+// START VOICE
+// =====================================================
+
+function playStartVoice() {
+
+  startSound.pause();
+
+  startSound.currentTime = 0;
+
+  startSound.play().catch(() => {});
+
+}
+
+
+// =====================================================
+// TAP VOICES
+// =====================================================
+
+// This remembers which sound was last used,
+// so the same voice isn't repeated immediately.
+
+let lastTouchSound = -1;
+
+
+function playTapVoice() {
+
+  let index;
+
+
+  if (touchSounds.length === 1) {
+
+    index = 0;
+
+  }
+
+  else {
+
+    do {
+
+      index =
         Math.floor(
-            Math.random() *
-            touchVoices.length
+          Math.random() *
+          touchSounds.length
         );
 
+    }
+    while (index === lastTouchSound);
 
-    const sound =
-        touchVoices[random];
+  }
 
+
+  lastTouchSound = index;
+
+
+  const sound = touchSounds[index];
+
+
+  // Clone allows rapid taps to overlap naturally.
+
+  const copy = sound.cloneNode();
+
+  copy.volume = sound.volume;
+
+  copy.play().catch(() => {});
+
+}
+
+
+// =====================================================
+// CREATE PIPE
+// =====================================================
+
+function createPipe() {
+
+  const minimumTop = 90;
+
+  const maximumTop =
+    canvas.height -
+    pipeGap -
+    150;
+
+
+  const topHeight =
+    Math.floor(
+
+      Math.random() *
+      (
+        maximumTop -
+        minimumTop
+      )
+
+    ) + minimumTop;
+
+
+  pipes.push({
+
+    x: canvas.width + 30,
+
+    top: topHeight,
+
+    bottom:
+      topHeight +
+      pipeGap,
+
+    counted: false
+
+  });
+
+}
+
+
+// =====================================================
+// START GAME
+// =====================================================
+
+function startGame() {
+
+  if (started) {
+    return;
+  }
+
+
+  started = true;
+
+  frame = 0;
+
+  pipes = [];
+
+
+  playStartVoice();
+
+}
+
+
+// =====================================================
+// JUMP
+// =====================================================
+
+function jump() {
+
+  if (gameOver) {
+    return;
+  }
+
+
+  if (!started) {
+
+    startGame();
+
+    // First click starts the game.
+    // Tap sound begins from following jumps.
+
+  }
+
+  else {
+
+    playTapVoice();
+
+  }
+
+
+  player.velocity =
+    jumpPower;
+
+
+  player.rotation =
+    -0.38;
+
+
+  player.scale =
+    1.10;
+
+}
+
+
+// =====================================================
+// COLLISION
+// =====================================================
+
+function checkPipeCollision(pipe) {
+
+  // Slightly forgiving hitbox
+
+  const paddingX = 15;
+
+  const paddingY = 10;
+
+
+  const playerLeft =
+    player.x +
+    paddingX;
+
+
+  const playerRight =
+    player.x +
+    player.width -
+    paddingX;
+
+
+  const playerTop =
+    player.y +
+    paddingY;
+
+
+  const playerBottom =
+    player.y +
+    player.height -
+    paddingY;
+
+
+  const pipeLeft =
+    pipe.x;
+
+
+  const pipeRight =
+    pipe.x +
+    pipeWidth;
+
+
+  const horizontalHit =
+
+    playerRight >
+    pipeLeft
+
+    &&
+
+    playerLeft <
+    pipeRight;
+
+
+  if (!horizontalHit) {
+
+    return false;
+
+  }
+
+
+  if (
+    playerTop <
+    pipe.top
+  ) {
+
+    return true;
+
+  }
+
+
+  if (
+    playerBottom >
+    pipe.bottom
+  ) {
+
+    return true;
+
+  }
+
+
+  return false;
+
+}
+
+
+// =====================================================
+// END GAME
+// =====================================================
+
+function endGame() {
+
+  if (gameOver) {
+    return;
+  }
+
+
+  gameOver = true;
+
+
+  deathVelocity =
+    player.velocity;
+
+
+  // Save best score
+
+  if (score > highScore) {
+
+    highScore = score;
+
+
+    localStorage.setItem(
+
+      "friendFlappyBest",
+
+      highScore
+
+    );
+
+  }
+
+
+  // Stop intro if still playing
+
+  startSound.pause();
+
+
+  // Stop tap sounds
+
+  touchSounds.forEach(sound => {
 
     sound.pause();
 
     sound.currentTime = 0;
 
-
-    sound.play()
-        .catch(() => {});
-
-}
+  });
 
 
-// ======================================================
-// START MUSIC
-// ======================================================
+  // Game over voice
 
-function startMusic() {
+  gameOverSound.pause();
 
-    if (backgroundMusic.paused) {
+  gameOverSound.currentTime = 0;
 
-        backgroundMusic.play()
-            .catch(() => {});
-
-    }
-
-}
+  gameOverSound
+    .play()
+    .catch(() => {});
 
 
-// ======================================================
-// CREATE PIPE
-// ======================================================
+  // Restart button appears shortly after losing
 
-function createPipe() {
-
-    const minimumTop = 80;
-
-    const maximumTop =
-        canvas.height -
-        pipeGap -
-        140;
-
-
-    const topHeight =
-        Math.floor(
-            Math.random() *
-            (
-                maximumTop -
-                minimumTop
-            )
-        )
-        +
-        minimumTop;
-
-
-    pipes.push({
-
-        x: canvas.width,
-
-        width: pipeWidth,
-
-        top: topHeight,
-
-        bottom:
-            topHeight +
-            pipeGap,
-
-        counted: false
-
-    });
-
-}
-
-
-// ======================================================
-// JUMP
-// ======================================================
-
-function jump() {
+  setTimeout(() => {
 
     if (gameOver) {
-        return;
-    }
 
-
-    // First touch starts game + music
-
-    if (!started) {
-
-        started = true;
-
-        pipes = [];
-
-        frame = 0;
-
-
-        startMusic();
+      restartBtn.style.display =
+        "block";
 
     }
 
-
-    player.velocity =
-        jumpPower;
-
-
-    // Jump animation
-
-    player.rotation =
-        -0.30;
-
-    player.scale =
-        1.10;
-
-
-    // Random funny voice
-
-    playRandomVoice();
+  }, 700);
 
 }
 
 
-// ======================================================
-// COLLISION
-// ======================================================
-
-function checkCollision(pipe) {
-
-    // Smaller collision box
-    // so face/bird doesn't die unfairly
-
-    const paddingX = 13;
-
-    const paddingY = 8;
-
-
-    const left =
-        player.x +
-        paddingX;
-
-
-    const right =
-        player.x +
-        player.width -
-        paddingX;
-
-
-    const top =
-        player.y +
-        paddingY;
-
-
-    const bottom =
-        player.y +
-        player.height -
-        paddingY;
-
-
-    const pipeLeft =
-        pipe.x;
-
-
-    const pipeRight =
-        pipe.x +
-        pipe.width;
-
-
-    const touchingX =
-
-        right > pipeLeft &&
-
-        left < pipeRight;
-
-
-    if (touchingX) {
-
-        if (
-            top < pipe.top ||
-            bottom > pipe.bottom
-        ) {
-
-            return true;
-
-        }
-
-    }
-
-
-    return false;
-
-}
-
-
-// ======================================================
-// GAME OVER
-// ======================================================
-
-function endGame() {
-
-    if (gameOver) {
-        return;
-    }
-
-
-    gameOver = true;
-
-    deathAnimation = true;
-
-
-    // Stop background song
-
-    backgroundMusic.pause();
-
-
-    // Save high score
-
-    if (score > highScore) {
-
-        highScore =
-            score;
-
-
-        localStorage.setItem(
-
-            "friendFlappyHighScore",
-
-            highScore
-
-        );
-
-    }
-
-
-    // Game Over voice
-
-    gameOverSound.pause();
-
-    gameOverSound.currentTime = 0;
-
-
-    gameOverSound.play()
-        .catch(() => {});
-
-
-    // Restart button thoda delay se
-
-    setTimeout(() => {
-
-        if (gameOver) {
-
-            restartBtn.style.display =
-                "block";
-
-        }
-
-    }, 900);
-
-}
-
-
-// ======================================================
+// =====================================================
 // RESTART
-// ======================================================
+// =====================================================
 
 function restartGame() {
 
-    // Stop sounds
+  // Stop game-over audio
 
-    gameOverSound.pause();
+  gameOverSound.pause();
 
-    gameOverSound.currentTime = 0;
-
-
-    backgroundMusic.pause();
-
-    backgroundMusic.currentTime = 0;
+  gameOverSound.currentTime = 0;
 
 
-    // Reset player
+  // Stop intro
 
-    player.y = 260;
+  startSound.pause();
 
-    player.velocity = 0;
-
-    player.rotation = 0;
-
-    player.scale = 1;
+  startSound.currentTime = 0;
 
 
-    // Reset game
+  // Reset tap sounds
 
-    pipes = [];
+  touchSounds.forEach(sound => {
 
-    frame = 0;
+    sound.pause();
 
-    score = 0;
+    sound.currentTime = 0;
 
-    pipeSpeed = 3;
-
-
-    started = false;
-
-    gameOver = false;
-
-    deathAnimation = false;
+  });
 
 
-    restartBtn.style.display =
-        "none";
+  // Player
 
-}
+  player.x = 75;
 
+  player.y = 320;
 
-// ======================================================
-// UPDATE PLAYER
-// ======================================================
+  player.velocity = 0;
 
-function updatePlayer() {
+  player.rotation = 0;
 
-    if (!started) {
-        return;
-    }
+  player.scale = 1;
 
 
-    if (!gameOver) {
+  // Game
 
-        player.velocity +=
-            gravity;
+  pipes = [];
 
+  frame = 0;
 
-        player.y +=
-            player.velocity;
+  score = 0;
 
-
-        // Rotate down while falling
-
-        if (
-            player.velocity > 0
-        ) {
-
-            player.rotation +=
-                0.025;
-
-        }
+  pipeSpeed = 3.1;
 
 
-        if (
-            player.rotation > 1
-        ) {
+  started = false;
 
-            player.rotation = 1;
-
-        }
+  gameOver = false;
 
 
-        // Scale returns to normal
+  // Background starts from first image again
 
-        player.scale +=
-            (
-                1 -
-                player.scale
-            )
-            *
-            0.15;
+  backgroundIndex = 0;
 
-    }
+  nextBackgroundIndex = 1;
+
+  backgroundX = 0;
+
+
+  lastTouchSound = -1;
+
+
+  restartBtn.style.display =
+    "none";
 
 }
 
 
-// ======================================================
-// DEATH ANIMATION
-// ======================================================
-
-function updateDeathAnimation() {
-
-    if (!deathAnimation) {
-        return;
-    }
-
-
-    player.velocity +=
-        0.65;
-
-
-    player.y +=
-        player.velocity;
-
-
-    player.rotation +=
-        0.12;
-
-
-    if (
-        player.y >
-        canvas.height +
-        100
-    ) {
-
-        deathAnimation =
-            false;
-
-    }
-
-}
-
-
-// ======================================================
-// UPDATE PIPES
-// ======================================================
-
-function updatePipes() {
-
-    if (
-        !started ||
-        gameOver
-    ) {
-
-        return;
-
-    }
-
-
-    if (
-        frame % 100 === 0
-    ) {
-
-        createPipe();
-
-    }
-
-
-    for (
-        const pipe of pipes
-    ) {
-
-        pipe.x -=
-            pipeSpeed;
-
-
-        if (
-            checkCollision(pipe)
-        ) {
-
-            endGame();
-
-            return;
-
-        }
-
-
-        // Score
-
-        if (
-            !pipe.counted &&
-            pipe.x +
-            pipe.width <
-            player.x
-        ) {
-
-            pipe.counted =
-                true;
-
-
-            score++;
-
-
-            // Difficulty increase
-
-            pipeSpeed =
-                Math.min(
-
-                    5.5,
-
-                    3 +
-                    score *
-                    0.05
-
-                );
-
-        }
-
-    }
-
-
-    pipes =
-        pipes.filter(
-
-            pipe =>
-                pipe.x > -100
-
-        );
-
-}
-
-
-// ======================================================
-// WORLD COLLISION
-// ======================================================
-
-function checkWorldCollision() {
-
-    if (
-        !started ||
-        gameOver
-    ) {
-
-        return;
-
-    }
-
-
-    // Ceiling
-
-    if (
-        player.y <= 0
-    ) {
-
-        player.y = 0;
-
-        endGame();
-
-    }
-
-
-    // Ground
-
-    if (
-        player.y +
-        player.height >=
-        canvas.height
-    ) {
-
-        endGame();
-
-    }
-
-}
-
-
-// ======================================================
-// MOVING BACKGROUND
-// ======================================================
+// =====================================================
+// UPDATE BACKGROUND
+// =====================================================
 
 function updateBackground() {
 
-    if (
-        !started ||
-        gameOver
-    ) {
-
-        return;
-
-    }
+  if (
+    !started ||
+    gameOver
+  ) {
+    return;
+  }
 
 
-    cloud1 -= 0.35;
-
-    cloud2 -= 0.50;
-
-
-    if (
-        cloud1 < -100
-    ) {
-
-        cloud1 =
-            canvas.width +
-            50;
-
-    }
+  backgroundX -=
+    backgroundSpeed;
 
 
-    if (
-        cloud2 < -100
-    ) {
+  // Once one entire screen has passed,
+  // move to next background.
 
-        cloud2 =
-            canvas.width +
-            100;
+  if (
+    backgroundX <=
+    -canvas.width
+  ) {
 
-    }
-
-
-    groundOffset -=
-        pipeSpeed;
+    backgroundX +=
+      canvas.width;
 
 
-    if (
-        groundOffset <= -40
-    ) {
+    backgroundIndex =
+      nextBackgroundIndex;
 
-        groundOffset = 0;
 
-    }
+    nextBackgroundIndex =
+      (
+        nextBackgroundIndex + 1
+      )
+      %
+      backgrounds.length;
+
+  }
 
 }
 
 
-// ======================================================
-// UPDATE
-// ======================================================
-
-function update() {
-
-    updateBackground();
-
-    updatePlayer();
-
-    updatePipes();
-
-    checkWorldCollision();
-
-    updateDeathAnimation();
-
-
-    if (
-        started &&
-        !gameOver
-    ) {
-
-        frame++;
-
-    }
-
-}
-
-
-// ======================================================
-// DRAW CLOUD
-// ======================================================
-
-function drawCloud(
-    x,
-    y,
-    scale
-) {
-
-    ctx.save();
-
-
-    ctx.translate(
-        x,
-        y
-    );
-
-
-    ctx.scale(
-        scale,
-        scale
-    );
-
-
-    ctx.fillStyle =
-        "rgba(255,255,255,0.85)";
-
-
-    ctx.beginPath();
-
-
-    ctx.arc(
-        0,
-        0,
-        25,
-        0,
-        Math.PI * 2
-    );
-
-
-    ctx.arc(
-        30,
-        -10,
-        30,
-        0,
-        Math.PI * 2
-    );
-
-
-    ctx.arc(
-        65,
-        0,
-        25,
-        0,
-        Math.PI * 2
-    );
-
-
-    ctx.fill();
-
-
-    ctx.restore();
-
-}
-
-
-// ======================================================
-// DRAW BACKGROUND
-// ======================================================
+// =====================================================
+// DRAW MOVING BACKGROUNDS
+// =====================================================
 
 function drawBackground() {
 
-    // Sky
+  // Backup colour while images load
 
-    ctx.fillStyle =
-        "#70c5ce";
+  ctx.fillStyle = "#70c5ce";
 
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 
-    ctx.fillRect(
 
-        0,
-        0,
+  const current =
+    backgrounds[backgroundIndex];
 
-        canvas.width,
-        canvas.height
 
-    );
+  const next =
+    backgrounds[nextBackgroundIndex];
 
 
-    // Sun
+  // Current scenery moving left
 
-    ctx.fillStyle =
-        "#ffe066";
+  drawCoverImage(
 
+    current,
 
-    ctx.beginPath();
+    backgroundX,
 
+    0,
 
-    ctx.arc(
+    canvas.width,
+    canvas.height
 
-        330,
-        80,
+  );
 
-        38,
 
-        0,
+  // Next scenery entering from right
 
-        Math.PI * 2
+  drawCoverImage(
 
-    );
+    next,
 
+    backgroundX +
+    canvas.width,
 
-    ctx.fill();
+    0,
 
+    canvas.width,
+    canvas.height
 
-    // Clouds
+  );
 
-    drawCloud(
-        cloud1,
-        130,
-        1
-    );
+}
 
 
-    drawCloud(
-        cloud2,
-        230,
-        0.8
-    );
+// =====================================================
+// UPDATE PLAYER
+// =====================================================
 
+function updatePlayer() {
 
-    // Far hills
+  if (!started) {
 
-    ctx.fillStyle =
-        "#82c47c";
+    // Small floating animation
+    // before game starts
 
+    player.y =
+      320 +
+      Math.sin(
+        performance.now() /
+        350
+      ) *
+      7;
 
-    ctx.beginPath();
+    return;
 
+  }
 
-    ctx.arc(
 
-        60,
-        600,
+  if (gameOver) {
 
-        180,
+    return;
 
-        Math.PI,
+  }
 
-        Math.PI * 2
 
-    );
+  player.velocity +=
+    gravity;
 
 
-    ctx.fill();
+  player.y +=
+    player.velocity;
 
 
-    ctx.beginPath();
+  // Falling rotation
 
+  if (
+    player.velocity > 0
+  ) {
 
-    ctx.arc(
+    player.rotation +=
+      0.027;
 
-        300,
-        600,
+  }
 
-        220,
 
-        Math.PI,
+  if (
+    player.rotation > 1.15
+  ) {
 
-        Math.PI * 2
+    player.rotation =
+      1.15;
 
-    );
+  }
 
 
-    ctx.fill();
+  // Jump squash animation back to normal
 
+  player.scale +=
 
-    // Ground
+    (
+      1 -
+      player.scale
+    )
 
-    ctx.fillStyle =
-        "#c79b5d";
+    *
 
+    0.14;
 
-    ctx.fillRect(
+}
 
-        0,
-        570,
 
-        canvas.width,
-        30
+// =====================================================
+// UPDATE DEATH
+// =====================================================
 
-    );
+function updateDeath() {
 
+  if (!gameOver) {
+    return;
+  }
 
-    // Moving ground pattern
 
-    ctx.fillStyle =
-        "#967044";
+  deathVelocity +=
+    0.55;
 
 
-    for (
+  player.y +=
+    deathVelocity;
 
-        let x =
-            groundOffset;
 
-        x <
-            canvas.width +
-            40;
+  player.rotation +=
+    0.10;
 
-        x += 40
 
+  if (
+    player.y >
+    canvas.height +
+    120
+  ) {
+
+    player.y =
+      canvas.height +
+      120;
+
+  }
+
+}
+
+
+// =====================================================
+// UPDATE PIPES
+// =====================================================
+
+function updatePipes() {
+
+  if (
+    !started ||
+    gameOver
+  ) {
+
+    return;
+
+  }
+
+
+  // New pipe every ~1.6 seconds at 60fps
+
+  if (
+    frame % 100 === 0
+  ) {
+
+    createPipe();
+
+  }
+
+
+  for (
+    const pipe of pipes
+  ) {
+
+    pipe.x -=
+      pipeSpeed;
+
+
+    // Collision
+
+    if (
+      checkPipeCollision(pipe)
     ) {
 
-        ctx.fillRect(
+      endGame();
 
-            x,
-            570,
+      return;
 
-            20,
-            30
+    }
+
+
+    // Passed pipe
+
+    if (
+      !pipe.counted
+      &&
+      pipe.x +
+      pipeWidth <
+      player.x
+    ) {
+
+      pipe.counted =
+        true;
+
+
+      score++;
+
+
+      // Slowly make game faster
+
+      pipeSpeed =
+        Math.min(
+
+          5.3,
+
+          3.1 +
+          score *
+          0.045
 
         );
 
     }
 
+  }
+
+
+  // Remove pipes that left screen
+
+  pipes =
+    pipes.filter(
+
+      pipe =>
+        pipe.x >
+        -pipeWidth -
+        20
+
+    );
+
 }
 
 
-// ======================================================
+// =====================================================
+// WORLD COLLISION
+// =====================================================
+
+function checkWorldCollision() {
+
+  if (
+    !started ||
+    gameOver
+  ) {
+
+    return;
+
+  }
+
+
+  // Top
+
+  if (
+    player.y <= 0
+  ) {
+
+    player.y = 0;
+
+    endGame();
+
+    return;
+
+  }
+
+
+  // Bottom
+
+  if (
+    player.y +
+    player.height >=
+    canvas.height
+  ) {
+
+    endGame();
+
+  }
+
+}
+
+
+// =====================================================
+// UPDATE EVERYTHING
+// =====================================================
+
+function update() {
+
+  updateBackground();
+
+  updatePlayer();
+
+  updatePipes();
+
+  checkWorldCollision();
+
+  updateDeath();
+
+
+  if (
+    started &&
+    !gameOver
+  ) {
+
+    frame++;
+
+  }
+
+}
+
+
+// =====================================================
 // DRAW PIPES
-// ======================================================
+// =====================================================
 
 function drawPipes() {
 
-    for (
-        const pipe of pipes
-    ) {
+  for (
+    const pipe of pipes
+  ) {
 
-        // TOP PIPE
+    // Shadow
 
-        ctx.fillStyle =
-            "#43aa48";
-
-
-        ctx.fillRect(
-
-            pipe.x,
-
-            0,
-
-            pipe.width,
-
-            pipe.top
-
-        );
+    ctx.fillStyle =
+      "rgba(0,0,0,0.22)";
 
 
-        // Top pipe end
+    ctx.fillRect(
 
-        ctx.fillStyle =
-            "#318c39";
+      pipe.x + 6,
 
+      0,
 
-        ctx.fillRect(
+      pipeWidth,
 
-            pipe.x - 5,
+      pipe.top
 
-            pipe.top - 25,
-
-            pipe.width + 10,
-
-            25
-
-        );
+    );
 
 
-        // BOTTOM PIPE
+    ctx.fillRect(
 
-        ctx.fillStyle =
-            "#43aa48";
+      pipe.x + 6,
 
+      pipe.bottom,
 
-        ctx.fillRect(
+      pipeWidth,
 
-            pipe.x,
+      canvas.height -
+      pipe.bottom
 
-            pipe.bottom,
-
-            pipe.width,
-
-            canvas.height -
-            pipe.bottom
-
-        );
+    );
 
 
-        // Bottom pipe end
+    // Main green pipe
 
-        ctx.fillStyle =
-            "#318c39";
+    ctx.fillStyle =
+      "#45b649";
 
 
-        ctx.fillRect(
+    ctx.fillRect(
 
-            pipe.x - 5,
+      pipe.x,
 
-            pipe.bottom,
+      0,
 
-            pipe.width + 10,
+      pipeWidth,
 
-            25
+      pipe.top
 
-        );
+    );
 
-    }
+
+    ctx.fillRect(
+
+      pipe.x,
+
+      pipe.bottom,
+
+      pipeWidth,
+
+      canvas.height -
+      pipe.bottom
+
+    );
+
+
+    // Pipe mouths
+
+    ctx.fillStyle =
+      "#2f9638";
+
+
+    ctx.fillRect(
+
+      pipe.x - 6,
+
+      pipe.top - 28,
+
+      pipeWidth + 12,
+
+      28
+
+    );
+
+
+    ctx.fillRect(
+
+      pipe.x - 6,
+
+      pipe.bottom,
+
+      pipeWidth + 12,
+
+      28
+
+    );
+
+
+    // Highlights
+
+    ctx.fillStyle =
+      "rgba(255,255,255,0.20)";
+
+
+    ctx.fillRect(
+
+      pipe.x + 8,
+
+      0,
+
+      8,
+
+      pipe.top - 28
+
+    );
+
+
+    ctx.fillRect(
+
+      pipe.x + 8,
+
+      pipe.bottom + 28,
+
+      8,
+
+      canvas.height -
+      pipe.bottom -
+      28
+
+    );
+
+  }
 
 }
 
 
-// ======================================================
-// DRAW BIRD + FRIEND FACE
-// ======================================================
+// =====================================================
+// DRAW BIRD + FRIEND PHOTO
+// =====================================================
 
 function drawPlayer() {
 
-    const centerX =
-        player.x +
-        player.width / 2;
+  // Don't draw bird once lose image is showing
 
+  if (
+    gameOver &&
+    player.y >
+    canvas.height
+  ) {
 
-    const centerY =
-        player.y +
-        player.height / 2;
+    return;
 
+  }
 
-    ctx.save();
 
+  const centerX =
+    player.x +
+    player.width / 2;
 
-    ctx.translate(
 
-        centerX,
+  const centerY =
+    player.y +
+    player.height / 2;
 
-        centerY
 
-    );
+  ctx.save();
 
 
-    ctx.rotate(
-        player.rotation
-    );
+  ctx.translate(
+    centerX,
+    centerY
+  );
 
 
-    ctx.scale(
+  ctx.rotate(
+    player.rotation
+  );
 
-        player.scale,
 
-        player.scale
+  ctx.scale(
+    player.scale,
+    player.scale
+  );
 
-    );
 
+  // -----------------------------
+  // TAIL
+  // -----------------------------
 
-    // ----------------------------------
-    // BIRD BODY
-    // ----------------------------------
+  ctx.fillStyle =
+    "#ff922b";
 
-    ctx.fillStyle =
-        "#ffd43b";
 
+  ctx.beginPath();
 
-    ctx.beginPath();
 
+  ctx.moveTo(
+    -38,
+    -4
+  );
 
-    ctx.ellipse(
 
-        -5,
-        4,
+  ctx.lineTo(
+    -59,
+    -20
+  );
 
-        40,
-        27,
 
-        0,
+  ctx.lineTo(
+    -54,
+    4
+  );
 
-        0,
 
-        Math.PI * 2
+  ctx.lineTo(
+    -61,
+    18
+  );
 
-    );
 
+  ctx.lineTo(
+    -37,
+    12
+  );
 
-    ctx.fill();
 
+  ctx.closePath();
 
-    // ----------------------------------
-    // WING
-    // ----------------------------------
+  ctx.fill();
 
-    ctx.fillStyle =
-        "#f59f00";
 
+  // -----------------------------
+  // BIRD BODY
+  // -----------------------------
 
-    ctx.beginPath();
+  ctx.fillStyle =
+    "#ffd43b";
 
 
-    ctx.ellipse(
+  ctx.beginPath();
 
-        -25,
-        10,
 
-        20,
-        13,
+  ctx.ellipse(
 
-        -0.3,
+    -3,
+    5,
 
-        0,
+    43,
+    29,
 
-        Math.PI * 2
+    0,
 
-    );
+    0,
 
+    Math.PI * 2
 
-    ctx.fill();
+  );
 
 
-    // ----------------------------------
-    // TAIL
-    // ----------------------------------
+  ctx.fill();
 
-    ctx.fillStyle =
-        "#ff922b";
 
+  // Body outline
 
-    ctx.beginPath();
+  ctx.strokeStyle =
+    "rgba(0,0,0,0.35)";
 
 
-    ctx.moveTo(
-        -40,
-        0
-    );
+  ctx.lineWidth = 3;
 
+  ctx.stroke();
 
-    ctx.lineTo(
-        -60,
-        -13
-    );
 
+  // -----------------------------
+  // WING
+  // -----------------------------
 
-    ctx.lineTo(
-        -55,
-        12
-    );
+  ctx.fillStyle =
+    "#f59f00";
 
 
-    ctx.closePath();
+  ctx.beginPath();
 
-    ctx.fill();
 
+  ctx.ellipse(
 
-    // ----------------------------------
-    // BEAK
-    // ----------------------------------
+    -28,
+    10,
 
-    ctx.fillStyle =
-        "#ff6b35";
+    20,
+    14,
 
+    -0.25,
 
-    ctx.beginPath();
+    0,
 
+    Math.PI * 2
 
-    ctx.moveTo(
-        34,
-        4
-    );
+  );
 
 
-    ctx.lineTo(
-        55,
-        11
-    );
+  ctx.fill();
 
 
-    ctx.lineTo(
-        34,
-        18
-    );
+  // -----------------------------
+  // BEAK
+  // -----------------------------
 
+  ctx.fillStyle =
+    "#ff6b35";
 
-    ctx.closePath();
 
-    ctx.fill();
+  ctx.beginPath();
 
 
-    // ----------------------------------
-    // FRIEND FACE
-    // ----------------------------------
+  ctx.moveTo(
+    38,
+    1
+  );
 
-    // Face intentionally thoda bada hai
 
-    const faceX = 12;
+  ctx.lineTo(
+    62,
+    11
+  );
 
-    const faceY = -4;
 
-    const faceRadius = 29;
+  ctx.lineTo(
+    38,
+    21
+  );
 
 
-    ctx.save();
+  ctx.closePath();
 
+  ctx.fill();
 
-    ctx.beginPath();
 
+  // -----------------------------
+  // FRIEND FACE
+  // -----------------------------
 
-    ctx.arc(
+  // Large face on bird's head
 
-        faceX,
-        faceY,
+  const faceX = 12;
 
-        faceRadius,
+  const faceY = -5;
 
-        0,
+  const faceRadius = 31;
 
-        Math.PI * 2
 
-    );
+  ctx.save();
 
 
-    ctx.clip();
+  ctx.beginPath();
+
+
+  ctx.arc(
+
+    faceX,
+    faceY,
+
+    faceRadius,
+
+    0,
+
+    Math.PI * 2
+
+  );
+
+
+  ctx.clip();
+
+
+  if (
+    friendImg.complete &&
+    friendImg.naturalWidth > 0
+  ) {
+
+    // Crop friend photo to square
+    // instead of stretching face.
+
+    const size =
+      Math.min(
+
+        friendImg.naturalWidth,
+
+        friendImg.naturalHeight
+
+      );
+
+
+    const sx =
+      (
+        friendImg.naturalWidth -
+        size
+      ) / 2;
+
+
+    const sy =
+      (
+        friendImg.naturalHeight -
+        size
+      ) / 2;
 
 
     ctx.drawImage(
 
-        friendImg,
+      friendImg,
 
-        faceX -
-        faceRadius,
+      sx,
+      sy,
 
-        faceY -
-        faceRadius,
+      size,
+      size,
 
-        faceRadius * 2,
+      faceX -
+      faceRadius,
 
-        faceRadius * 2
+      faceY -
+      faceRadius,
 
-    );
+      faceRadius * 2,
 
-
-    ctx.restore();
-
-
-    // Face border
-
-    ctx.strokeStyle =
-        "white";
-
-
-    ctx.lineWidth = 3;
-
-
-    ctx.beginPath();
-
-
-    ctx.arc(
-
-        faceX,
-        faceY,
-
-        faceRadius,
-
-        0,
-
-        Math.PI * 2
+      faceRadius * 2
 
     );
 
+  }
 
-    ctx.stroke();
+
+  ctx.restore();
 
 
-    ctx.restore();
+  // Face border
+
+  ctx.strokeStyle =
+    "white";
+
+
+  ctx.lineWidth = 4;
+
+
+  ctx.beginPath();
+
+
+  ctx.arc(
+
+    faceX,
+    faceY,
+
+    faceRadius,
+
+    0,
+
+    Math.PI * 2
+
+  );
+
+
+  ctx.stroke();
+
+
+  ctx.restore();
 
 }
 
 
-// ======================================================
-// SCORE
-// ======================================================
+// =====================================================
+// DRAW SCORE
+// =====================================================
 
 function drawScore() {
 
-    if (gameOver) {
-        return;
-    }
+  if (gameOver) {
+    return;
+  }
 
 
-    ctx.textAlign =
-        "center";
+  ctx.textAlign =
+    "center";
 
 
-    ctx.fillStyle =
-        "white";
+  ctx.lineJoin =
+    "round";
 
 
-    ctx.strokeStyle =
-        "rgba(0,0,0,0.5)";
+  ctx.font =
+    "bold 42px Arial";
 
 
-    ctx.lineWidth = 5;
+  ctx.lineWidth = 7;
+
+  ctx.strokeStyle =
+    "rgba(0,0,0,0.55)";
 
 
-    ctx.font =
-        "bold 40px Arial";
+  ctx.fillStyle =
+    "white";
 
 
-    ctx.strokeText(
+  ctx.strokeText(
 
-        score,
+    score,
 
-        canvas.width / 2,
+    canvas.width / 2,
 
-        60
+    62
 
-    );
-
-
-    ctx.fillText(
-
-        score,
-
-        canvas.width / 2,
-
-        60
-
-    );
+  );
 
 
-    ctx.font =
-        "bold 16px Arial";
+  ctx.fillText(
+
+    score,
+
+    canvas.width / 2,
+
+    62
+
+  );
 
 
-    ctx.fillText(
+  ctx.font =
+    "bold 16px Arial";
 
-        "BEST: " +
-        highScore,
 
-        canvas.width / 2,
+  ctx.lineWidth = 4;
 
-        88
 
-    );
+  ctx.strokeText(
+
+    "BEST: " +
+    highScore,
+
+    canvas.width / 2,
+
+    91
+
+  );
+
+
+  ctx.fillText(
+
+    "BEST: " +
+    highScore,
+
+    canvas.width / 2,
+
+    91
+
+  );
 
 }
 
 
-// ======================================================
+// =====================================================
 // START SCREEN
-// ======================================================
+// =====================================================
 
 function drawStartScreen() {
 
-    if (
-        started ||
-        gameOver
-    ) {
+  if (
+    started ||
+    gameOver
+  ) {
 
-        return;
+    return;
 
-    }
-
-
-    ctx.fillStyle =
-        "rgba(0,0,0,0.55)";
+  }
 
 
-    ctx.fillRect(
-
-        35,
-        190,
-
-        330,
-        160
-
-    );
+  ctx.fillStyle =
+    "rgba(0,0,0,0.50)";
 
 
-    ctx.fillStyle =
-        "white";
+  ctx.fillRect(
+
+    35,
+    190,
+
+    canvas.width - 70,
+    185
+
+  );
 
 
-    ctx.textAlign =
-        "center";
+  ctx.textAlign =
+    "center";
 
 
-    ctx.font =
-        "bold 27px Arial";
+  ctx.fillStyle =
+    "white";
 
 
-    ctx.fillText(
-
-        "FRIEND FLAPPY 😂",
-
-        canvas.width / 2,
-
-        240
-
-    );
+  ctx.font =
+    "bold 30px Arial";
 
 
-    ctx.font =
-        "18px Arial";
+  ctx.fillText(
+
+    "FRIEND FLAPPY 😂",
+
+    canvas.width / 2,
+
+    245
+
+  );
 
 
-    ctx.fillText(
-
-        "Tap / Click / SPACE",
-
-        canvas.width / 2,
-
-        285
-
-    );
+  ctx.font =
+    "bold 19px Arial";
 
 
-    ctx.font =
-        "15px Arial";
+  ctx.fillText(
+
+    "TAP TO START",
+
+    canvas.width / 2,
+
+    300
+
+  );
 
 
-    ctx.fillText(
+  ctx.font =
+    "15px Arial";
 
-        "to start",
 
-        canvas.width / 2,
+  ctx.fillText(
 
-        315
+    "Click • Tap • SPACE • ↑",
 
-    );
+    canvas.width / 2,
+
+    335
+
+  );
 
 }
 
 
-// ======================================================
-// FULL SCREEN LOSE PHOTO
-// ======================================================
+// =====================================================
+// DRAW GAME OVER
+// =====================================================
 
 function drawGameOver() {
 
-    if (!gameOver) {
-        return;
-    }
+  if (!gameOver) {
+    return;
+  }
 
 
-    // Dark background in case
-    // image hasn't loaded yet
+  // Black fallback
 
-    ctx.fillStyle =
-        "black";
+  ctx.fillStyle =
+    "black";
 
 
-    ctx.fillRect(
+  ctx.fillRect(
 
-        0,
-        0,
+    0,
+    0,
 
-        canvas.width,
-        canvas.height
+    canvas.width,
+    canvas.height
 
-    );
+  );
 
 
-    // FULL SCREEN LOSE IMAGE
+  // Full-screen lose photo
 
-    if (
-        loseImg.complete &&
-        loseImg.naturalWidth > 0
-    ) {
+  drawCoverImage(
 
-        // Cover-style drawing:
-        // image full screen cover karegi
-        // bina stretch kiye
+    loseImg,
 
-        const imageRatio =
-            loseImg.width /
-            loseImg.height;
+    0,
+    0,
 
+    canvas.width,
+    canvas.height
 
-        const canvasRatio =
-            canvas.width /
-            canvas.height;
+  );
 
 
-        let drawWidth;
+  // Dark overlay
 
-        let drawHeight;
+  ctx.fillStyle =
+    "rgba(0,0,0,0.22)";
 
-        let drawX;
 
-        let drawY;
+  ctx.fillRect(
 
+    0,
+    0,
 
-        if (
-            imageRatio >
-            canvasRatio
-        ) {
+    canvas.width,
+    canvas.height
 
-            drawHeight =
-                canvas.height;
+  );
 
 
-            drawWidth =
-                drawHeight *
-                imageRatio;
+  // Text
 
+  ctx.textAlign =
+    "center";
 
-            drawX =
-                (
-                    canvas.width -
-                    drawWidth
-                )
-                /
-                2;
 
+  ctx.fillStyle =
+    "white";
 
-            drawY = 0;
 
-        }
+  ctx.strokeStyle =
+    "black";
 
-        else {
 
-            drawWidth =
-                canvas.width;
+  ctx.lineJoin =
+    "round";
 
 
-            drawHeight =
-                drawWidth /
-                imageRatio;
+  ctx.lineWidth = 8;
 
 
-            drawX = 0;
+  ctx.font =
+    "bold 38px Arial";
 
 
-            drawY =
-                (
-                    canvas.height -
-                    drawHeight
-                )
-                /
-                2;
+  ctx.strokeText(
 
-        }
+    "GAME OVER 😂",
 
+    canvas.width / 2,
 
-        ctx.drawImage(
+    70
 
-            loseImg,
+  );
 
-            drawX,
-            drawY,
 
-            drawWidth,
-            drawHeight
+  ctx.fillText(
 
-        );
+    "GAME OVER 😂",
 
-    }
+    canvas.width / 2,
 
+    70
 
-    // Slight dark overlay
-    // so score readable rahe
+  );
 
-    ctx.fillStyle =
-        "rgba(0,0,0,0.25)";
 
+  ctx.font =
+    "bold 27px Arial";
 
-    ctx.fillRect(
 
-        0,
-        0,
+  ctx.lineWidth = 6;
 
-        canvas.width,
-        canvas.height
 
-    );
+  ctx.strokeText(
 
+    "SCORE: " + score,
 
-    // GAME OVER
+    canvas.width / 2,
 
-    ctx.textAlign =
-        "center";
+    120
 
+  );
 
-    ctx.fillStyle =
-        "white";
 
+  ctx.fillText(
 
-    ctx.strokeStyle =
-        "black";
+    "SCORE: " + score,
 
+    canvas.width / 2,
 
-    ctx.lineWidth = 7;
+    120
 
+  );
 
-    ctx.font =
-        "bold 36px Arial";
 
+  ctx.font =
+    "bold 20px Arial";
 
-    ctx.strokeText(
 
-        "GAME OVER 😂",
+  ctx.strokeText(
 
-        canvas.width / 2,
+    "BEST: " +
+    highScore,
 
-        65
+    canvas.width / 2,
 
-    );
+    158
 
+  );
 
-    ctx.fillText(
 
-        "GAME OVER 😂",
+  ctx.fillText(
 
-        canvas.width / 2,
+    "BEST: " +
+    highScore,
 
-        65
+    canvas.width / 2,
 
-    );
+    158
 
-
-    // Score
-
-    ctx.font =
-        "bold 25px Arial";
-
-
-    ctx.strokeText(
-
-        "SCORE: " + score,
-
-        canvas.width / 2,
-
-        110
-
-    );
-
-
-    ctx.fillText(
-
-        "SCORE: " + score,
-
-        canvas.width / 2,
-
-        110
-
-    );
-
-
-    // High score
-
-    ctx.font =
-        "bold 19px Arial";
-
-
-    ctx.strokeText(
-
-        "BEST: " +
-        highScore,
-
-        canvas.width / 2,
-
-        145
-
-    );
-
-
-    ctx.fillText(
-
-        "BEST: " +
-        highScore,
-
-        canvas.width / 2,
-
-        145
-
-    );
+  );
 
 }
 
 
-// ======================================================
-// DRAW
-// ======================================================
+// =====================================================
+// DRAW EVERYTHING
+// =====================================================
 
 function draw() {
 
-    drawBackground();
+  drawBackground();
 
-    drawPipes();
+  drawPipes();
 
-    drawPlayer();
+  drawPlayer();
 
-    drawScore();
+  drawScore();
 
-    drawStartScreen();
+  drawStartScreen();
 
-    // MUST remain last
-    // so lose photo covers everything
 
-    drawGameOver();
+  // Last so lose.png covers entire game
+
+  drawGameOver();
 
 }
 
 
-// ======================================================
+// =====================================================
 // GAME LOOP
-// ======================================================
+// =====================================================
 
 function gameLoop() {
 
-    update();
+  update();
 
-    draw();
+  draw();
 
 
-    requestAnimationFrame(
-        gameLoop
-    );
+  requestAnimationFrame(
+    gameLoop
+  );
 
 }
 
@@ -1898,69 +2012,75 @@ function gameLoop() {
 gameLoop();
 
 
-// ======================================================
-// MOBILE + MOUSE
-// ======================================================
+// =====================================================
+// TOUCH + MOUSE
+// =====================================================
 
 canvas.addEventListener(
 
-    "pointerdown",
+  "pointerdown",
 
-    function () {
+  function(event) {
 
-        jump();
+    event.preventDefault();
 
-    }
+    jump();
+
+  }
 
 );
 
 
-// ======================================================
+// =====================================================
 // KEYBOARD
-// ======================================================
+// =====================================================
 
 document.addEventListener(
 
-    "keydown",
+  "keydown",
 
-    function (event) {
+  function(event) {
 
-        if (
-            event.code ===
-            "Space"
-            ||
-            event.code ===
-            "ArrowUp"
-        ) {
+    if (
 
-            event.preventDefault();
+      event.code === "Space"
+
+      ||
+
+      event.code === "ArrowUp"
+
+    ) {
+
+      event.preventDefault();
 
 
-            jump();
-
-        }
+      jump();
 
     }
+
+  }
 
 );
 
 
-// ======================================================
-// RESTART BUTTON
-// ======================================================
+// =====================================================
+// RESTART
+// =====================================================
 
 restartBtn.addEventListener(
 
-    "click",
+  "click",
 
-    function (event) {
+  function(event) {
 
-        event.stopPropagation();
+    event.preventDefault();
+
+    event.stopPropagation();
 
 
-        restartGame();
+    restartGame();
 
-    }
+  }
 
 );
 
